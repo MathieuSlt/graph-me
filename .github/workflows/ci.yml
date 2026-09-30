@@ -20,6 +20,10 @@ jobs:
           python-version: ${{ matrix.python }}
       # The [ner] extra pulls PyTorch; it is tested separately once Tier 1 lands (M5).
       - run: uv sync --locked --extra medium --extra ui
+      # msgvault builds the synthetic mail/WhatsApp fixtures (pinned, checksum-verified).
+      - run: |
+          scripts/install_msgvault.sh "$HOME/.local/bin"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
       - run: uv run ruff check
       - run: uv run ruff format --check
       - run: uv run pytest -q

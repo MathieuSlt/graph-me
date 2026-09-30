@@ -5,8 +5,7 @@ from __future__ import annotations
 import sqlite3
 from importlib import resources
 from pathlib import Path
-
-SCHEMA_VERSION = 2
+from urllib.parse import quote
 
 
 def _migrations() -> dict[int, str]:
@@ -19,9 +18,12 @@ def _migrations() -> dict[int, str]:
     return scripts
 
 
+SCHEMA_VERSION = max(_migrations())  # the newest migration file
+
+
 def connect(path: Path, *, readonly: bool = False) -> sqlite3.Connection:
     """Open ``graph.db``, applying pending migrations unless read-only."""
-    target = f"file:{path}?mode=ro" if readonly else f"file:{path}"
+    target = f"file:{quote(str(path))}" + ("?mode=ro" if readonly else "")
     conn = sqlite3.connect(target, uri=True)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")

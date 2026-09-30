@@ -116,7 +116,7 @@ def test_upgrade_from_v1_indexes_existing_items(tmp_path):
     raw.close()
 
     conn = db.connect(path)
-    assert db.schema_version(conn) == 2
+    assert db.schema_version(conn) == db.SCHEMA_VERSION
     hits = conn.execute("SELECT rowid FROM items_fts WHERE items_fts MATCH 'bail'").fetchall()
     assert len(hits) == 1
     conn.close()

@@ -59,10 +59,27 @@ def _like_prefix(path: str) -> str:
 
 
 def blacklisted_item_ids(
-    conn: sqlite3.Connection, paths: Iterable[str], patterns: Iterable[str]
+    conn: sqlite3.Connection,
+    paths: Iterable[str],
+    patterns: Iterable[str],
+    identities: Iterable[tuple[str, str]] = (),
 ) -> set[str]:
-    """Items already stored that the blacklist now covers (by path, or by text pattern)."""
+    """Items already stored that the blacklist now covers: by path, text pattern or contact.
+
+    ``identities`` are normalized (kind, value) pairs such as ("email", "x@y.z"): every item
+    mentioning the person who owns one of them is covered.
+    """
     ids: set[str] = set()
+    for kind, value in identities:
+        ids.update(
+            row[0]
+            for row in conn.execute(
+                """SELECT m.item_id FROM mentions m
+                   JOIN aliases a ON a.entity_id = m.entity_id
+                   WHERE a.kind = ? AND a.value = ?""",
+                (kind, value),
+            )
+        )
     for raw in paths:
         path = str(Path(raw).expanduser().resolve())
         ids.update(

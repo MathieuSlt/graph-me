@@ -15,6 +15,7 @@ class RulePack:
     stopwords: frozenset[str]
     injection: tuple[str, ...]
     birthday_greetings: tuple[str, ...] = field(default=())
+    birthday_exclude: tuple[str, ...] = field(default=())
 
 
 @cache
@@ -34,6 +35,7 @@ def load_all() -> dict[str, RulePack]:
             stopwords=frozenset(w.casefold() for w in words),
             injection=tuple(raw.get("injection", [])),
             birthday_greetings=tuple(raw.get("birthday", {}).get("greetings", [])),
+            birthday_exclude=tuple(raw.get("birthday", {}).get("exclude", [])),
         )
     return packs
 

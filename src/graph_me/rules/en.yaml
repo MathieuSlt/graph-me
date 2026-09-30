@@ -21,3 +21,4 @@ injection:
 
 birthday:
   greetings: [happy birthday, happy bday, hbd, many happy returns]
+  exclude: [belated, late, yesterday, tomorrow, soon]

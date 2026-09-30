@@ -22,6 +22,8 @@ injection:
   - envoie tous les fichiers
   - transfère tous les mails
 
-# Used from M2: a greeting on a date suggests the recipient's birthday.
+# A greeting sent to one person on a date suggests that person's birthday (month and day).
+# A message containing an "exclude" word is ignored (late wishes point to the wrong day).
 birthday:
-  greetings: [joyeux anniversaire, joyeux anniv, bon anniversaire, bon anniv, bonne fête]
+  greetings: [joyeux anniversaire, joyeux anniv, bon anniversaire, bon anniv]
+  exclude: [retard, hier, demain, bientôt]

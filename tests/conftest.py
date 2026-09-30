@@ -34,3 +34,49 @@ def docs_config(docs: Path, **source_extra) -> Config:
         sources={"docs": SourceConfig(type="filesystem", paths=[str(docs)], **source_extra)},
         blacklist=BlacklistConfig(paths=[str(docs / "Medical")]),
     )
+
+
+needs_msgvault = pytest.mark.skipif(
+    __import__("shutil").which("msgvault") is None,
+    reason="msgvault is not installed (scripts/install_msgvault.sh)",
+)
+
+
+@pytest.fixture(scope="session")
+def msgvault_template(tmp_path_factory, docs_template):
+    import shutil
+
+    from factory import build_msgvault
+
+    if shutil.which("msgvault") is None:
+        pytest.skip("msgvault is not installed (scripts/install_msgvault.sh)")
+    root = tmp_path_factory.mktemp("mv")
+    lease = (docs_template / "Logement/Contrat_bail_2025.pdf").read_bytes()
+    home = build_msgvault(root, lease)
+    return root, home
+
+
+@pytest.fixture
+def mv(tmp_path, msgvault_template):
+    """A private copy of the msgvault fixture: (msgvault home, contacts folder)."""
+    import shutil
+
+    root, home = msgvault_template
+    target = tmp_path / "mv"
+    shutil.copytree(home, target / "home", ignore=shutil.ignore_patterns("*.lock", "daemon*"))
+    shutil.copytree(root / "contacts", target / "contacts")
+    return target / "home", target / "contacts"
+
+
+def full_config(docs: Path, mv_home: Path, contacts: Path, **people) -> Config:
+    from graph_me.config import PeopleConfig
+
+    return Config(
+        people=PeopleConfig(phone_country_code="33", **people),
+        sources={
+            "docs": SourceConfig(type="filesystem", paths=[str(docs)]),
+            "messages": SourceConfig(type="msgvault", db=str(mv_home)),
+            "contacts": SourceConfig(type="vcard", paths=[str(contacts)]),
+        },
+        blacklist=BlacklistConfig(paths=[str(docs / "Medical")]),
+    )

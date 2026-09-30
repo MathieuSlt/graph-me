@@ -20,9 +20,9 @@ from pathlib import Path
 
 from graph_me.config import BlacklistConfig, Config
 from graph_me.connectors import registry
-from graph_me.connectors.base import Connector, Item
+from graph_me.connectors.base import Connector, Item, Party
 from graph_me.pipeline import chunk, lang, parse, sanitize
-from graph_me.pipeline.tier0 import entities
+from graph_me.pipeline.tier0 import entities, facts, people
 from graph_me.store import db, forget
 
 BATCH = 500
@@ -98,11 +98,27 @@ class _Workers:
 
 
 class _Blacklist:
-    def __init__(self, cfg: BlacklistConfig) -> None:
+    def __init__(self, cfg: BlacklistConfig, ctx: people.PeopleContext) -> None:
         self.patterns = [re.compile(p, re.IGNORECASE) for p in cfg.patterns]
+        self.ctx = ctx
+        self.contacts = blacklisted_identities(cfg, ctx)
 
     def blocks(self, text: str | None) -> bool:
         return bool(text) and any(p.search(text) for p in self.patterns)
+
+    def blocks_people(self, item: Item) -> bool:
+        if not self.contacts:
+            return False
+        parties = [item.author, *item.recipients]
+        if item.contact:
+            parties += [Party(email=e) for e in item.contact.emails]
+            parties += [Party(phone=p) for p in item.contact.phones]
+        return any(k in self.contacts for party in parties for k in self.ctx.keys(party))
+
+
+def blacklisted_identities(cfg: BlacklistConfig, ctx: people.PeopleContext) -> set:
+    """Normalized (kind, value) identifiers of blacklisted contacts (emails or phone numbers)."""
+    return {k for value in cfg.contacts for k in ctx.keys(Party(email=value, phone=value))}
 
 
 def default_workers() -> int:
@@ -115,12 +131,17 @@ class ScanReport:
     forgotten_blacklisted: int = 0  # stored items removed because the blacklist now covers them
 
 
-def apply_blacklist(conn: sqlite3.Connection, cfg: BlacklistConfig) -> int:
+def apply_blacklist(
+    conn: sqlite3.Connection, cfg: BlacklistConfig, ctx: people.PeopleContext | None = None
+) -> int:
     """Forget stored items the blacklist covers. Runs the full check only when it changed."""
-    digest = _config_hash(cfg.model_dump())
+    ctx = ctx or people.PeopleContext()
+    digest = _config_hash({**cfg.model_dump(), "country_code": ctx.country_code})
     if db.get_meta(conn, "blacklist_hash") == digest:
         return 0
-    ids = forget.blacklisted_item_ids(conn, cfg.paths, cfg.patterns)
+    ids = forget.blacklisted_item_ids(
+        conn, cfg.paths, cfg.patterns, blacklisted_identities(cfg, ctx)
+    )
     removed = forget.forget_items(conn, ids)
     db.set_meta(conn, "blacklist_hash", digest)
     conn.commit()
@@ -137,8 +158,9 @@ def scan(
 ) -> ScanReport:
     if only_source and only_source not in cfg.sources:
         raise ValueError(f"no source named {only_source!r} in config.yaml")
-    report = ScanReport(forgotten_blacklisted=apply_blacklist(conn, cfg.blacklist))
-    blacklist = _Blacklist(cfg.blacklist)
+    ctx = people.PeopleContext.from_config(cfg.people)
+    report = ScanReport(forgotten_blacklisted=apply_blacklist(conn, cfg.blacklist, ctx))
+    blacklist = _Blacklist(cfg.blacklist, ctx)
     workers_ = _Workers(workers if workers is not None else default_workers())
     results = report.sources
     try:
@@ -161,9 +183,19 @@ def scan(
     finally:
         workers_.close()
     # Re-processed or newly blacklisted items may have left entities, facts or relations behind.
-    forget.cleanup_orphans(conn)
-    conn.commit()
+    finish(conn)
     return report
+
+
+def finish(conn: sqlite3.Connection) -> None:
+    """Whole-graph steps after items changed: orphans, relation weights, fact confidence."""
+    forget.cleanup_orphans(conn)
+    conn.execute(
+        """UPDATE relations SET weight =
+           (SELECT count(*) FROM evidence WHERE evidence.relation_id = relations.id)"""
+    )
+    facts.recompute_confidence(conn)
+    conn.commit()
 
 
 def _config_hash(data: dict) -> str:
@@ -220,7 +252,11 @@ def _store(
     iid = item_id(source, item.external_id)
     # Re-processing replaces the item; cascades drop its chunks, mentions and evidence.
     conn.execute("DELETE FROM items WHERE id = ?", (iid,))
-    if blacklist.blocks(prepared.text) or blacklist.blocks(item.title):
+    if (
+        blacklist.blocks(prepared.text)
+        or blacklist.blocks(item.title)
+        or blacklist.blocks_people(item)
+    ):
         stats.blacklisted += 1
         return
 
@@ -255,8 +291,15 @@ def _store(
         "INSERT INTO chunks(item_id, ord, text, tokens) VALUES (?, ?, ?, ?)",
         [(iid, n, body, tokens) for n, (body, tokens) in enumerate(prepared.chunks)],
     )
+    conn.executemany(
+        "INSERT INTO item_attachments(item_id, content_hash, filename, mime_type) "
+        "VALUES (?, ?, ?, ?)",
+        [(iid, a.content_hash, a.filename, a.mime_type) for a in item.attachments],
+    )
     if item.kind == "file":
         entities.file_entities(conn, iid, item)
+    else:
+        people.item_people(conn, iid, item, blacklist.ctx)
 
     if existed:
         stats.updated += 1

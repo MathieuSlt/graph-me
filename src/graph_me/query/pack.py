@@ -83,8 +83,16 @@ def _words(text: str) -> int:
 
 
 def build(
-    query: str, hits: list[Hit], *, budget: int = DEFAULT_BUDGET, reveal: bool = False
+    query: str,
+    hits: list[Hit],
+    *,
+    facts: list[dict] | None = None,
+    extras: dict[str, dict] | None = None,
+    budget: int = DEFAULT_BUDGET,
+    reveal: bool = False,
 ) -> dict:
+    """``facts``: from query.graph.facts_for_query; ``extras``: from query.graph.enrich_hits."""
+    extras = extras or {}
     items, used, truncated = [], _words(NOTICE), False
     for hit in hits:
         snippet, redacted = (hit.snippet, []) if reveal else redact(hit.snippet)
@@ -105,6 +113,7 @@ def build(
         }
         if redacted:
             entry["redacted"] = sorted(set(redacted))
+        entry.update(extras.get(hit.item_id, {}))
         cost = _words(snippet) + _words(hit.title or "") + 12
         if items and used + cost > budget:
             truncated = True
@@ -115,6 +124,6 @@ def build(
         "query": query,
         "notice": NOTICE,
         "answer_items": items,
-        "facts": [],  # filled from M2
+        "facts": facts or [],
         "truncated": truncated,
     }

@@ -6,9 +6,17 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tests"))
 
-from factory import make_docs  # noqa: E402
+import shutil  # noqa: E402
+
+from factory import build_msgvault, make_docs  # noqa: E402
 
 if __name__ == "__main__":
     out = ROOT / "tests" / "fixtures" / "generated"
     docs = make_docs(out)
     print(f"docs fixture: {docs}")
+    if shutil.which("msgvault"):
+        lease = (docs / "Logement/Contrat_bail_2025.pdf").read_bytes()
+        home = build_msgvault(out, lease)
+        print(f"msgvault fixture: {home}  (contacts: {out / 'contacts/contacts.vcf'})")
+    else:
+        print("msgvault not installed: skipping the mail/WhatsApp fixture")
