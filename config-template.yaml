@@ -23,6 +23,11 @@ sources:
     type: filesystem
     paths: [~/Documents, ~/Desktop]
     exclude: ["**/node_modules/**", "**/.git/**", "**/.venv/**", "**/__pycache__/**"]
+    trust: self      # self (your own files) | untrusted (content from others)
+  # downloads:
+  #   type: filesystem
+  #   paths: [~/Downloads]
+  #   trust: untrusted  # downloaded files come from other people
   # messages:
   #   type: msgvault
   #   db: ~/.msgvault

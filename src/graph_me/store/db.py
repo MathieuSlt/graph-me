@@ -6,12 +6,17 @@ import sqlite3
 from importlib import resources
 from pathlib import Path
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 
 def _migrations() -> dict[int, str]:
-    schema = resources.files("graph_me.store").joinpath("schema.sql").read_text(encoding="utf-8")
-    return {1: schema}
+    """Version 1 is the base schema; later versions are migrations/NNN_*.sql."""
+    store = resources.files("graph_me.store")
+    scripts = {1: store.joinpath("schema.sql").read_text(encoding="utf-8")}
+    for entry in store.joinpath("migrations").iterdir():
+        if entry.name.endswith(".sql"):
+            scripts[int(entry.name.split("_", 1)[0])] = entry.read_text(encoding="utf-8")
+    return scripts
 
 
 def connect(path: Path, *, readonly: bool = False) -> sqlite3.Connection:

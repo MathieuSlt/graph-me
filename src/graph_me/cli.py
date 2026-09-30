@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import json
 import shutil
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from importlib import resources
 from pathlib import Path
 from typing import Annotated
@@ -137,10 +139,56 @@ def _not_yet(milestone: str) -> None:
     raise typer.Exit(2)
 
 
+def _open_store(c: Context) -> db.sqlite3.Connection:
+    if not c.db_path.exists():
+        typer.secho(
+            f"No store at {c.out}. Run `graph-me init` first.", fg=typer.colors.RED, err=True
+        )
+        raise typer.Exit(1)
+    return db.connect(c.db_path)
+
+
 @app.command()
-def scan() -> None:
-    """Build the graph from all configured sources."""
-    _not_yet("M1")
+def scan(
+    ctx: typer.Context,
+    source: Annotated[str | None, typer.Option(help="Only this source from config.yaml.")] = None,
+    tier: Annotated[str, typer.Option(help="none (Tier 0), medium or high.")] = "none",
+    workers: Annotated[int | None, typer.Option(help="Parallel parsers (default: CPUs-1).")] = None,
+) -> None:
+    """Build or update the graph from the configured sources (Tier 0: no model)."""
+    from graph_me.pipeline import run
+
+    c = _ctx(ctx)
+    if tier != "none":
+        _not_yet("M5 (Tier 1) / after v1 (Tier 2)")
+    if not c.config.sources:
+        typer.secho(f"No sources in {c.config_path}. Add one under `sources:`.", fg="red", err=True)
+        raise typer.Exit(1)
+    conn = _open_store(c)
+    typer.secho(
+        "Tier 0: no AI. Results are less convincing; `graph-me enrich` improves them (M5).",
+        fg=typer.colors.YELLOW,
+        err=True,
+    )
+
+    def progress(name: str, done: int, total: int) -> None:
+        typer.echo(f"  {name}: {done}/{total}", err=True)
+
+    try:
+        results = run.scan(conn, c.config, only_source=source, workers=workers, progress=progress)
+    except ValueError as exc:
+        typer.secho(str(exc), fg=typer.colors.RED, err=True)
+        raise typer.Exit(1) from exc
+    finally:
+        conn.close()
+    for name, st in results.items():
+        typer.echo(
+            f"{name}: {st.seen} seen, {st.added} added, {st.updated} updated, "
+            f"{st.unchanged} unchanged, {st.blacklisted} blacklisted, "
+            f"{st.parse_errors} unreadable, {st.flagged} flagged"
+        )
+        for err in st.errors:
+            typer.echo(f"  unreadable: {err}", err=True)
 
 
 @app.command()
@@ -162,9 +210,54 @@ def ingest() -> None:
 
 
 @app.command()
-def query() -> None:
-    """Ask the graph from the terminal."""
-    _not_yet("M1")
+def query(
+    ctx: typer.Context,
+    text: Annotated[str, typer.Argument(help="What to look for.")],
+    as_json: Annotated[
+        bool, typer.Option("--json", help="Print the context pack as JSON.")
+    ] = False,
+    limit: Annotated[int, typer.Option(help="Maximum results.")] = 10,
+    source: Annotated[str | None, typer.Option(help="Only this source.")] = None,
+    kind: Annotated[str | None, typer.Option(help="file, email, message, contact.")] = None,
+    since: Annotated[str | None, typer.Option(help="Modified on or after (YYYY-MM-DD).")] = None,
+    until: Annotated[str | None, typer.Option(help="Modified on or before (YYYY-MM-DD).")] = None,
+    reveal: Annotated[bool, typer.Option(help="Show redacted secrets (IBAN, keys...).")] = False,
+) -> None:
+    """Search the graph and print cited results."""
+    from graph_me.query import engine, pack
+
+    c = _ctx(ctx)
+    conn = _open_store(c)
+    try:
+        hits = engine.search(
+            conn, text, limit=limit, source=source, kind=kind, since=since, until=until
+        )
+        result = pack.build(text, hits, reveal=reveal)
+        conn.execute(
+            "INSERT INTO query_log(ts, interface, query, result_ids) VALUES (?, 'cli', ?, ?)",
+            (
+                datetime.now(UTC).isoformat(timespec="seconds"),
+                text,
+                json.dumps([i["id"] for i in result["answer_items"]]),
+            ),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    if as_json:
+        typer.echo(json.dumps(result, ensure_ascii=False, indent=2))
+        return
+    if not result["answer_items"]:
+        typer.echo("No results.")
+        return
+    for n, item in enumerate(result["answer_items"], 1):
+        flag = typer.style("  [flagged: possible injection]", fg="red") if item["flagged"] else ""
+        typer.echo(f"{n}. {item['title']}{flag}")
+        typer.echo(f"   {item['uri']}")
+        typer.echo(f"   {' '.join(item['snippet'].split())}")
+        date = (item["date"] or "")[:10]
+        typer.echo(typer.style(f"   {item['source']} · {date} · {item['trust']}", dim=True))
 
 
 @app.command()

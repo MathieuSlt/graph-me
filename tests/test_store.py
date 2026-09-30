@@ -98,3 +98,25 @@ def test_readonly_connection_cannot_write(tmp_path):
     with pytest.raises(sqlite3.OperationalError):
         ro.execute("INSERT INTO meta(key, value) VALUES ('a', 'b')")
     ro.close()
+
+
+def test_upgrade_from_v1_indexes_existing_items(tmp_path):
+    from importlib import resources
+
+    path = tmp_path / "graph.db"
+    raw = sqlite3.connect(path)
+    v1 = resources.files("graph_me.store").joinpath("schema.sql").read_text()
+    raw.executescript(v1 + "\nPRAGMA user_version = 1;")
+    raw.execute("INSERT INTO sources(id, type) VALUES ('docs', 'filesystem')")
+    raw.execute(
+        "INSERT INTO items(id, source_id, external_id, kind, title, uri) "
+        "VALUES ('i1', 'docs', '/d/bail.pdf', 'file', 'bail.pdf', '/d/bail.pdf')"
+    )
+    raw.commit()
+    raw.close()
+
+    conn = db.connect(path)
+    assert db.schema_version(conn) == 2
+    hits = conn.execute("SELECT rowid FROM items_fts WHERE items_fts MATCH 'bail'").fetchall()
+    assert len(hits) == 1
+    conn.close()
