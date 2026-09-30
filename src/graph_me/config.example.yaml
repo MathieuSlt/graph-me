@@ -1,0 +1,31 @@
+# graph-me configuration.
+# Nothing is excluded by default: only the blacklist below and each source's `exclude`
+# (noise such as build folders) filter what gets indexed.
+
+# Where graph-out lives. Default: next to this file. `--out` or GRAPH_ME_OUT override it.
+# output: ~/graph-me/graph-out
+
+extraction:
+  # none = Tier 0, no model at all (free, offline; results are less convincing without AI)
+  # medium = Tier 1, high = Tier 2
+  default_tier: none
+  medium:
+    llm: { provider: agent }        # agent | ollama | anthropic | openai_compat
+    embeddings: local
+  high:
+    llm: { provider: anthropic, model: claude-sonnet-5-5 }
+
+sources:
+  docs:
+    type: filesystem
+    paths: [~/Documents, ~/Desktop]
+    exclude: ["**/node_modules/**", "**/.git/**", "**/.venv/**", "**/__pycache__/**"]
+  # messages:
+  #   type: msgvault
+  #   db: ~/.msgvault
+  #   accounts: [me@example.com, whatsapp]
+
+blacklist:
+  paths: []        # e.g. ~/Documents/medical
+  contacts: []     # emails or phone numbers
+  patterns: []     # regular expressions matched against text
