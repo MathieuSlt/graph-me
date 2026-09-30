@@ -12,6 +12,8 @@ from __future__ import annotations
 
 import sqlite3
 from dataclasses import dataclass, field
+from datetime import tzinfo
+from zoneinfo import ZoneInfo
 
 from graph_me.config import PeopleConfig
 from graph_me.connectors.base import Item, Party
@@ -27,10 +29,14 @@ ME = ("role", "me")
 class PeopleContext:
     country_code: str | None = None
     me: set[tuple[str, str]] = field(default_factory=set)  # normalized (kind, value)
+    tz: tzinfo | None = None  # None: this computer's time zone
 
     @classmethod
     def from_config(cls, cfg: PeopleConfig) -> PeopleContext:
-        ctx = cls(country_code=cfg.phone_country_code)
+        ctx = cls(
+            country_code=cfg.phone_country_code,
+            tz=ZoneInfo(cfg.timezone) if cfg.timezone else None,
+        )
         for value in cfg.me:
             ctx.me.update(ctx.keys(Party(email=value, phone=value)))
         return ctx
@@ -117,7 +123,7 @@ def item_people(conn: sqlite3.Connection, item_id: str, item: Item, ctx: PeopleC
         for pid in dict.fromkeys(recipients):
             relate(conn, author, pid, "wrote_to", item_id, "tier0:message")
 
-    facts.greeting_facts(conn, item_id, item, recipients)
+    facts.greeting_facts(conn, item_id, item, recipients, ctx.tz)
 
 
 def _contact(conn: sqlite3.Connection, item_id: str, item: Item, ctx: PeopleContext) -> None:

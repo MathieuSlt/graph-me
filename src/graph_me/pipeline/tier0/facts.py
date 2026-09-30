@@ -3,14 +3,16 @@
 - Contact cards: birthday (and birth year), nicknames, organization. Confidence 0.95.
 - Birthday greetings: a message to exactly one person whose opening words contain a greeting
   from a rule pack ("joyeux anniv", "happy birthday"...) suggests that person's birthday on the
-  message's local date. Confidence 0.5, rising by 0.15 for each extra year the same date is seen
-  (max 0.9). Messages with an "exclude" word ("en retard", "belated") are ignored.
+  message's local date (``people.timezone``). Confidence 0.5, rising by 0.15 for each extra
+  year the same date is seen (max 0.9). Messages with an "exclude" word ("en retard",
+  "belated") are ignored.
 """
 
 from __future__ import annotations
 
 import re
 import sqlite3
+from datetime import tzinfo
 from functools import cache
 
 from graph_me import rules
@@ -88,8 +90,13 @@ def find_greeting(text: str) -> str | None:
 
 
 def greeting_facts(
-    conn: sqlite3.Connection, item_id: str, item: Item, recipients: list[str]
+    conn: sqlite3.Connection,
+    item_id: str,
+    item: Item,
+    recipients: list[str],
+    tz: tzinfo | None = None,
 ) -> None:
+    """``tz``: the user's time zone (``people.timezone``); None means this computer's."""
     targets = set(recipients)
     if item.kind not in ("email", "message") or not item.text or not item.created_at:
         return
@@ -98,7 +105,7 @@ def greeting_facts(
     lang = find_greeting(item.text)
     if not lang:
         return
-    local = item.created_at.astimezone()  # the day as the user lived it, not UTC
+    local = item.created_at.astimezone(tz)  # the day as the user lived it, not UTC
     upsert_fact(
         conn,
         targets.pop(),

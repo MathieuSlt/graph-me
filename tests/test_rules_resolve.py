@@ -25,6 +25,8 @@ def test_find_greeting(text, lang):
 
 
 def test_greeting_uses_local_date_and_needs_one_recipient(conn):
+    from zoneinfo import ZoneInfo
+
     conn.execute("INSERT INTO sources(id, type) VALUES ('s', 'x')")
     conn.execute(
         "INSERT INTO items(id, source_id, external_id, kind) VALUES ('i', 's', 'e', 'message')"
@@ -34,12 +36,13 @@ def test_greeting_uses_local_date_and_needs_one_recipient(conn):
     # 23:30 UTC on March 11 is already March 12 in Paris (UTC+1): the rule uses local time.
     item = Item(external_id="e", version="1", kind="message", text="Joyeux anniversaire !",
                 created_at=datetime(2024, 3, 11, 23, 30, tzinfo=UTC))  # fmt: skip
-    facts.greeting_facts(conn, "i", item, ["p1", "p2"])
+    paris = ZoneInfo("Europe/Paris")
+    facts.greeting_facts(conn, "i", item, ["p1", "p2"], paris)
     assert conn.execute("SELECT count(*) FROM facts").fetchone()[0] == 0
-    facts.greeting_facts(conn, "i", item, ["p1"])
-    [(value,)] = conn.execute("SELECT value FROM facts").fetchall()
-    local = item.created_at.astimezone()
-    assert value == f"{local.month:02d}-{local.day:02d}"
+    facts.greeting_facts(conn, "i", item, ["p1"], paris)
+    facts.greeting_facts(conn, "i", item, ["p2"], ZoneInfo("UTC"))
+    rows = dict(conn.execute("SELECT entity_id, value FROM facts").fetchall())
+    assert rows == {"p1": "03-12", "p2": "03-11"}  # same instant, two time zones
 
 
 def test_merge_folds_facts_relations_and_aliases(conn):

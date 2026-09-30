@@ -130,7 +130,7 @@ def test_cli_who_fact_and_query(tmp_path, docs, mv, monkeypatch):
     home, contacts = mv
     cfg = tmp_path / "config.yaml"
     cfg.write_text(
-        "people: {phone_country_code: '33'}\n"
+        "people: {phone_country_code: '33', timezone: Europe/Paris}\n"
         "sources:\n"
         f"  docs: {{type: filesystem, paths: ['{docs}']}}\n"
         f"  messages: {{type: msgvault, db: '{home}'}}\n"

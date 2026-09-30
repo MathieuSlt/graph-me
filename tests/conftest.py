@@ -72,7 +72,8 @@ def full_config(docs: Path, mv_home: Path, contacts: Path, **people) -> Config:
     from graph_me.config import PeopleConfig
 
     return Config(
-        people=PeopleConfig(phone_country_code="33", **people),
+        # The fixture's messages are timed in Paris; pin it so CI (UTC) sees the same days.
+        people=PeopleConfig(phone_country_code="33", timezone="Europe/Paris", **people),
         sources={
             "docs": SourceConfig(type="filesystem", paths=[str(docs)]),
             "messages": SourceConfig(type="msgvault", db=str(mv_home)),

@@ -14,6 +14,9 @@ people:
   phone_country_code: null
   # Your own emails / phone numbers, if a source can't tell which messages are yours.
   me: []
+  # Time zone that decides which day a message was sent (a wish at 00:30 is for that day).
+  # Default: this computer's. Set it when graph-me runs on a server or container in UTC.
+  timezone: null   # e.g. Europe/Paris
 
 extraction:
   # none = Tier 0, no model at all (free, offline; results are less convincing without AI)
