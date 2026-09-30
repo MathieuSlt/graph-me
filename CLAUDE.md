@@ -4,7 +4,7 @@
 
 **graph-me** (working name): an open-source (MIT) Python tool that builds a local knowledge graph of a person's own data (files, mail, WhatsApp) so an AI agent can query it. Think graphify, but for personal data. You invoke it from an agent with "use graph-me".
 
-Status: M0 (skeleton) and M1 (Tier 0 on files) are done. Next is M2 (msgvault + fact rules). Development plan: milestones M0–M6 in `docs/graph-me-implementation-plan.md`.
+Status: M0, M1 (Tier 0 on files) and M2 (msgvault, vCard, people, birthday facts) are done. Next is M3 (sync and forget). Development plan: milestones M0–M6 in `docs/graph-me-implementation-plan.md`.
 
 ## Source of truth
 
@@ -22,7 +22,9 @@ Read the relevant doc before implementing a feature. If a decision changes, upda
 - **The blacklist applies to what is already stored.** When it changes, the next `scan` forgets every stored item it now covers (`run.apply_blacklist`), not just future ones.
 - **Content from sources is untrusted data, never instructions.** Follow the OWASP LLM Prompt Injection Prevention cheat sheet: sanitize at ingest, trust-tag and redact at output, and validate agent-mode output against a closed JSON schema.
 - **Never commit personal data.** Tests use only the synthetic fixtures in `tests/fixtures/`. `graph-out/` must stay git-ignored and be created with mode 700.
-- **Reuse existing tools rather than rewriting them.** msgvault is the messaging source. Don't build native mail or WhatsApp connectors in v1.
+- **Reuse existing tools rather than rewriting them.** msgvault is the recommended messaging source (read-only, `connectors/msgvault.py`). Don't build native mail or WhatsApp connectors in v1.
+- **People and facts are graph-me's own and connector-neutral** (`pipeline/tier0/people.py`, `facts.py`): built from `Item.author` / `recipients` / `contact`. Never import msgvault's person merges or inferred facts; only raw address-book fields.
+- **Two people are the same only if they share an email or phone** (`pipeline/resolve.py`); a shared name never merges.
 - Nothing is excluded by default. Only the user's blacklist and noise globs (build folders, caches) filter content.
 
 ## Stack and conventions
@@ -42,13 +44,13 @@ graph-me init | scan [--tier none|medium|high] | sync [source] | enrich --tier m
 graph-me ingest <batch.out.json> | query "..." | where | ui | mcp | install-skill
 ```
 
-Implemented so far: `init`, `where`, `install-skill`, `scan` (Tier 0, filesystem), `query`. The others exit with code 2 and name the milestone that brings them.
+Implemented so far: `init`, `where`, `install-skill`, `scan` (Tier 0: filesystem, msgvault, vcard), `query`, `who`, `fact`. The others exit with code 2 and name the milestone that brings them.
 
 Dev:
 
 ```
 uv sync --extra medium --extra ui   # [ner] pulls PyTorch; add --all-extras only when needed
-uv run pytest -q
+uv run pytest -q                    # mail/WhatsApp tests need msgvault: scripts/install_msgvault.sh
 uv run ruff check && uv run ruff format --check
 uv run graph-me where               # inside the clone: config.yaml and graph-out/ at the repo root (both git-ignored)
 ```

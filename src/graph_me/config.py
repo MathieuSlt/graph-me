@@ -19,9 +19,10 @@ import tomllib
 from importlib import resources
 from pathlib import Path
 from typing import Literal
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import yaml
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 ENV_OUT = "GRAPH_ME_OUT"
 ENV_CONFIG = "GRAPH_ME_CONFIG"
@@ -73,10 +74,34 @@ class BlacklistConfig(BaseModel):
     patterns: list[str] = Field(default_factory=list)
 
 
+class PeopleConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    # Country calling code for national phone numbers ("06 12 34 56 78" -> +33612345678),
+    # so a contact's number matches the same person on WhatsApp. Example: "33".
+    phone_country_code: str | None = None
+    # Your own emails and phone numbers, when a source can't tell which messages are yours.
+    me: list[str] = Field(default_factory=list)
+    # Time zone used to tell which day a message was sent (birthday wishes just after
+    # midnight). IANA name such as "Europe/Paris". Default: this computer's time zone.
+    timezone: str | None = None
+
+    @field_validator("timezone")
+    @classmethod
+    def _known_timezone(cls, value: str | None) -> str | None:
+        if value is not None:
+            try:
+                ZoneInfo(value)
+            except (ZoneInfoNotFoundError, ValueError) as exc:
+                raise ValueError(f"unknown time zone {value!r} (example: Europe/Paris)") from exc
+        return value
+
+
 class Config(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     output: Path | None = None
+    people: PeopleConfig = Field(default_factory=PeopleConfig)
     extraction: ExtractionConfig = Field(default_factory=ExtractionConfig)
     sources: dict[str, SourceConfig] = Field(default_factory=dict)
     blacklist: BlacklistConfig = Field(default_factory=BlacklistConfig)

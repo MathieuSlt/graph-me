@@ -89,3 +89,12 @@ def test_unknown_top_level_key_is_rejected(tmp_path):
     path.write_text("sourcez: {}\n")
     with pytest.raises(ValidationError):
         config.load_config(path)
+
+
+def test_people_timezone_is_validated(tmp_path):
+    path = tmp_path / "config.yaml"
+    path.write_text("people: {timezone: Europe/Paris}\n")
+    assert config.load_config(path).people.timezone == "Europe/Paris"
+    path.write_text("people: {timezone: Mars/Olympus}\n")
+    with pytest.raises(ValidationError, match="unknown time zone"):
+        config.load_config(path)

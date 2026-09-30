@@ -226,7 +226,7 @@ def query(
     reveal: Annotated[bool, typer.Option(help="Show redacted secrets (IBAN, keys...).")] = False,
 ) -> None:
     """Search the graph and print cited results."""
-    from graph_me.query import engine, pack
+    from graph_me.query import engine, graph, pack
 
     c = _ctx(ctx)
     conn = _open_store(c)
@@ -234,7 +234,13 @@ def query(
         hits = engine.search(
             conn, text, limit=limit, source=source, kind=kind, since=since, until=until
         )
-        result = pack.build(text, hits, reveal=reveal)
+        result = pack.build(
+            text,
+            hits,
+            facts=graph.facts_for_query(conn, text, c.config.people),
+            extras=graph.enrich_hits(conn, [h.item_id for h in hits]),
+            reveal=reveal,
+        )
         conn.execute(
             "INSERT INTO query_log(ts, interface, query, result_ids) VALUES (?, 'cli', ?, ?)",
             (
@@ -250,16 +256,103 @@ def query(
     if as_json:
         typer.echo(json.dumps(result, ensure_ascii=False, indent=2))
         return
-    if not result["answer_items"]:
+    if not result["answer_items"] and not result["facts"]:
         typer.echo("No results.")
         return
+    for person in result["facts"]:
+        _echo_facts(person["entity"], person["facts"])
     for n, item in enumerate(result["answer_items"], 1):
         flag = typer.style("  [flagged: possible injection]", fg="red") if item["flagged"] else ""
         typer.echo(f"{n}. {item['title']}{flag}")
         typer.echo(f"   {item['uri']}")
+        if item.get("from"):
+            to = ", ".join(item.get("to") or []) or "?"
+            typer.echo(f"   {item['from']} -> {to}")
         typer.echo(f"   {' '.join(item['snippet'].split())}")
-        date = (item["date"] or "")[:10]
-        typer.echo(typer.style(f"   {item['source']} · {date} · {item['trust']}", dim=True))
+        for origin in item.get("origin", []):
+            typer.echo(f"   came with: {origin['title']} (from {origin['from']}, {_day(origin)})")
+        for copy in item.get("saved_as", []):
+            typer.echo(f"   saved as: {copy['path']}")
+        typer.echo(typer.style(f"   {item['source']} · {_day(item)} · {item['trust']}", dim=True))
+
+
+def _day(item: dict) -> str:
+    """The item's date in the local timezone (dates are stored in UTC)."""
+    value = item.get("date")
+    if not value:
+        return ""
+    try:
+        return datetime.fromisoformat(value).astimezone().date().isoformat()
+    except ValueError:
+        return value[:10]
+
+
+def _echo_facts(entity: dict, facts: list[dict]) -> None:
+    label = entity["name"] or next((a["value"] for a in entity["aliases"]), entity["id"])
+    typer.secho(f"{label}{' (me)' if entity['is_me'] else ''}", bold=True)
+    for fact in facts:
+        typer.echo(f"   {fact['key']}: {fact['value']}  (confidence {fact['confidence']})")
+        for ev in fact["evidence"][:3]:
+            typer.echo(
+                typer.style(f"      from {ev['title']} · {_day(ev)} · {ev['uri']}", dim=True)
+            )
+
+
+@app.command()
+def who(
+    ctx: typer.Context,
+    text: Annotated[str, typer.Argument(help="A name, nickname, email, phone, or 'me'.")],
+    as_json: Annotated[bool, typer.Option("--json", help="Print JSON.")] = False,
+) -> None:
+    """Show what the graph knows about a person: identifiers, facts, closest contacts."""
+    from graph_me.query import graph
+
+    c = _ctx(ctx)
+    conn = _open_store(c)
+    try:
+        people = graph.who_is(conn, text, c.config.people)
+    finally:
+        conn.close()
+    if as_json:
+        typer.echo(json.dumps(people, ensure_ascii=False, indent=2))
+        return
+    if not people:
+        typer.echo("Nobody found.")
+        return
+    for person in people:
+        _echo_facts(person, person["facts"])
+        ids = ", ".join(a["value"] for a in person["aliases"])
+        typer.echo(f"   identifiers: {ids or '-'} · {person['mentions']} items")
+        for rel in person["related"]:
+            arrow = "->" if rel["direction"] == "out" else "<-"
+            name = rel["entity"]["name"] or rel["entity"]["id"]
+            typer.echo(f"   {arrow} {rel['type']} {name} ({int(rel['weight'])})")
+
+
+@app.command()
+def fact(
+    ctx: typer.Context,
+    who_text: Annotated[str, typer.Argument(metavar="WHO", help="Name, nickname, email or phone.")],
+    key: Annotated[str, typer.Argument(help="birthday, nickname, organization, birth_year...")],
+    as_json: Annotated[bool, typer.Option("--json", help="Print JSON.")] = False,
+) -> None:
+    """Show one fact about a person, with the items it was learned from."""
+    from graph_me.query import graph
+
+    c = _ctx(ctx)
+    conn = _open_store(c)
+    try:
+        found = graph.get_fact(conn, who_text, key, c.config.people)
+    finally:
+        conn.close()
+    if as_json:
+        typer.echo(json.dumps(found, ensure_ascii=False, indent=2))
+        return
+    if not found:
+        typer.echo(f"No {key} known for {who_text!r}.")
+        raise typer.Exit(1)
+    for person in found:
+        _echo_facts(person["entity"], person["facts"])
 
 
 @app.command()

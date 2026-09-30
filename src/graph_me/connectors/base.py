@@ -23,6 +23,24 @@ class Party(BaseModel):
     handle: str | None = None
 
 
+class Contact(BaseModel):
+    """A raw address-book entry (vCard, CardDAV)."""
+
+    name: str | None = None
+    nicknames: list[str] = Field(default_factory=list)
+    emails: list[str] = Field(default_factory=list)
+    phones: list[str] = Field(default_factory=list)
+    birthday: str | None = None  # "MM-DD" or "YYYY-MM-DD"
+    org: str | None = None
+    note: str | None = None
+
+
+class Attachment(BaseModel):
+    content_hash: str | None = None  # sha256 of the bytes
+    filename: str | None = None
+    mime_type: str | None = None
+
+
 class Item(BaseModel):
     external_id: str
     version: str  # opaque; a different version means "changed"
@@ -34,11 +52,14 @@ class Item(BaseModel):
     modified_at: datetime | None = None
     author: Party | None = None
     recipients: list[Party] = Field(default_factory=list)
-    attachments: list[str] = Field(default_factory=list)  # external ids or content hashes
+    attachments: list[Attachment] = Field(default_factory=list)
     text: str | None = None  # None: the pipeline parses `path`
     path: Path | None = None  # local file to parse when text is None
     content_hash: str | None = None
     trust: Literal["self", "known", "untrusted"] = "untrusted"
+    is_from_me: bool = False  # authored by the user (sent mail, own chat messages)
+    # Contacts: raw address-book fields (names, emails, phones, birthday, nickname...).
+    contact: Contact | None = None
     extra: dict = Field(default_factory=dict)
 
 

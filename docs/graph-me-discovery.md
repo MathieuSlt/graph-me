@@ -285,5 +285,9 @@ Open questions:
 | Languages | Multilingual from the start (FR + EN rule packs) |
 | Platforms | Linux + macOS first |
 | Out of scope | Screen and audio capture; images later |
+| Messaging source | msgvault recommended, not required: graph-me reads its database read-only and builds its own people and facts from any connector's messages (decided 2026-09-30) |
+| Contacts | From msgvault (raw CardDAV entries) or `.vcf` files (`vcard` connector) |
+| People | Same person only when an email or phone is shared; never by name alone |
+| msgvault Gmail scope | msgvault asks for `gmail.modify` (its deletion flow); documented, graph-me stays read-only |
 
 Name alternatives checked on PyPI (free as of 2026-09-30): kithgraph, lifeweave, selfgraph, personagraph, lore-graph, ownsight, kinloom. Taken: lifegraph (so life-graph too), clawgraph (so claw-graph too).
