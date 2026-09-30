@@ -76,7 +76,7 @@ def test_install_skill(home, tmp_path):
     assert runner.invoke(app, ["install-skill", "--dest", str(dest), "--force"]).exit_code == 0
 
 
-@pytest.mark.parametrize("command", ["scan", "sync", "enrich", "ingest", "query", "ui", "mcp"])
+@pytest.mark.parametrize("command", ["sync", "enrich", "ingest", "ui", "mcp"])
 def test_future_commands_say_not_implemented(home, command):
     result = runner.invoke(app, [command])
     assert result.exit_code == 2

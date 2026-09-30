@@ -2,7 +2,8 @@
 
 A local knowledge graph of your personal data (files, mail, WhatsApp) that your AI agent can query. Think [graphify](https://github.com/Graphify-Labs/graphify), for your own life.
 
-> Status: early development (milestone M0). Not usable yet. See `docs/` for the design.
+> Status: early development (milestone M1). Tier 0 search over your files works; mail, WhatsApp,
+> the MCP server and the Claude Code skill come next. See `docs/` for the design.
 
 ## Install
 
@@ -16,6 +17,16 @@ graph-me where
 ```
 
 Edit `config.yaml` to list your sources. [`config-template.yaml`](config-template.yaml) documents every option.
+
+```bash
+graph-me scan                      # index your files (Tier 0: no AI, offline)
+graph-me query "contrat de bail"   # cited results: path, snippet, source, date, trust
+graph-me query "wifi" --json       # the context pack an agent receives
+```
+
+Tier 0 uses no model at all, so results are less convincing than with AI: it matches words in file
+names and contents (French and English, accents ignored). Secrets such as IBANs, card numbers,
+API keys and passwords are redacted in results unless you pass `--reveal`.
 
 ## Principles
 

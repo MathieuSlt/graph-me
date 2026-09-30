@@ -193,7 +193,7 @@ CREATE TABLE query_log (ts TEXT, interface TEXT, query TEXT, result_ids TEXT);
 CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT);  -- schema_version, tiers run
 ```
 
-Forget runs in one transaction: delete the item (cascades to chunks, mentions, evidence), then delete relations and facts with no evidence left, then entities with no mentions and no aliases.
+Forget runs in one transaction: delete the item (cascades to chunks, mentions, evidence), then delete relations and facts with no evidence left, then entities with no mentions left (their aliases go with them: an entity exists only because some item mentions it).
 
 ## Connector interface
 
@@ -202,6 +202,7 @@ Forget runs in one transaction: delete the item (cascades to chunks, mentions, e
 ```python
 class Item(BaseModel):
     external_id: str
+    version: str  # opaque; changes when the item changes
     kind: Literal["file", "email", "message", "contact", "thread"]
     title: str | None
     uri: str | None  # path or deep link
@@ -220,17 +221,17 @@ class Connector(Protocol):
     type: str  # "filesystem", "msgvault", ...
 
     def __init__(self, name: str, config: dict): ...
-    def list_ids(self) -> Iterator[tuple[str, str]]: ...  # (external_id, content_hash)
+    def list_ids(self) -> Iterator[tuple[str, str]]: ...  # (external_id, version)
     def fetch(self, external_ids: Iterable[str]) -> Iterator[Item]: ...
 ```
 
-Sync logic in the core: compare `list_ids()` with the store. New or changed hash means fetch and process. Missing means forget.
+Sync logic in the core: compare `list_ids()` with the store. A new id or a changed `version` (an opaque string: mtime + size for files) means fetch and process. Missing means forget.
 
 Plugins register through Python entry points (`graph_me.connectors`), so `pip install graph-me-telegram` makes `type: telegram` available in config.yaml.
 
 | Connector | Reads | Notes |
 | --- | --- | --- |
-| filesystem | Walks configured paths, text-like extensions only | Respects exclude globs and blacklist; content hash = sha256; mtime shortcut to skip unchanged files |
+| filesystem | Walks configured paths, text-like extensions only | Respects exclude globs and blacklist; `version` = mtime + size to skip unchanged files, content hash = sha256; optional `trust: untrusted` for folders like Downloads |
 | msgvault | msgvault's local database, opened read-only | Maps messages, threads, contacts and attachments to Items. Pin supported msgvault versions; fall back to `msgvault serve` HTTP API if the schema changes |
 
 ## Pipeline and tiers
