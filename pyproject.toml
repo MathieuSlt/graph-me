@@ -48,6 +48,10 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["src/graph_me"]
 
+[tool.hatch.build.targets.wheel.force-include]
+# The template lives at the repo root for visibility and ships inside the package for `init`.
+"config-template.yaml" = "graph_me/config-template.yaml"
+
 [tool.uv]
 python-preference = "only-managed"
 

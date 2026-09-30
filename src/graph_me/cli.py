@@ -74,8 +74,7 @@ def init(ctx: typer.Context) -> None:
         typer.echo(f"config  {c.config_path} (kept)")
     else:
         c.config_path.parent.mkdir(parents=True, exist_ok=True)
-        example = resources.files("graph_me").joinpath("config.example.yaml").read_text("utf-8")
-        c.config_path.write_text(example, encoding="utf-8")
+        c.config_path.write_text(config.template_text(), encoding="utf-8")
         typer.echo(f"config  {c.config_path} (created, edit `sources:` then run `graph-me scan`)")
     config.ensure_output(c.out)
     conn = db.connect(c.db_path)

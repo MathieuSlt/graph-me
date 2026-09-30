@@ -1,4 +1,7 @@
-# graph-me configuration.
+# graph-me configuration template.
+# `graph-me init` copies it to config.yaml (~/graph-me/config.yaml, or the repo root inside a
+# clone). You can also copy it by hand. config.yaml holds your paths: it is git-ignored.
+#
 # Nothing is excluded by default: only the blacklist below and each source's `exclude`
 # (noise such as build folders) filter what gets indexed.
 

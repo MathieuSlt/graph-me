@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import os
 import tomllib
+from importlib import resources
 from pathlib import Path
 from typing import Literal
 
@@ -25,6 +26,7 @@ from pydantic import BaseModel, ConfigDict, Field
 ENV_OUT = "GRAPH_ME_OUT"
 ENV_CONFIG = "GRAPH_ME_CONFIG"
 CONFIG_NAME = "config.yaml"
+TEMPLATE_NAME = "config-template.yaml"
 OUT_NAME = "graph-out"
 DB_NAME = "graph.db"
 HOME_BASE = Path("~/graph-me")
@@ -107,6 +109,17 @@ def config_path(explicit: Path | None = None, cwd: Path | None = None) -> Path:
     if env := os.environ.get(ENV_CONFIG):
         return Path(env).expanduser()
     return base_dir(cwd) / CONFIG_NAME
+
+
+def template_text() -> str:
+    """The commented config template copied by ``graph-me init``.
+
+    Installed wheels carry it inside the package; a source checkout reads it from the repo root.
+    """
+    packaged = resources.files("graph_me").joinpath(TEMPLATE_NAME)
+    if packaged.is_file():
+        return packaged.read_text(encoding="utf-8")
+    return (Path(__file__).resolve().parents[2] / TEMPLATE_NAME).read_text(encoding="utf-8")
 
 
 def load_config(path: Path) -> Config:

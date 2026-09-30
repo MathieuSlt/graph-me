@@ -89,10 +89,10 @@ graph-me/
 ├── pyproject.toml
 ├── LICENSE                      # MIT
 ├── README.md
+├── config-template.yaml         # commented config; copied by `graph-me init` (also shipped in the wheel)
 ├── src/graph_me/
 │   ├── cli.py                   # Typer app: scan, sync, enrich, ingest, where, query, ui, mcp
 │   ├── config.py                # Pydantic models, output-path resolution
-│   ├── config.example.yaml      # copied by `graph-me init`
 │   ├── env.py                   # Python/SQLite checks for `graph-me where`
 │   ├── skill/SKILL.md           # Claude Code skill (packaged so install-skill works)
 │   ├── store/

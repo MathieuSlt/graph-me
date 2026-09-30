@@ -11,9 +11,11 @@ graph-me runs on a Python managed by [uv](https://docs.astral.sh/uv/), so you do
 ```bash
 curl -LsSf https://astral.sh/uv/install.sh | sh     # once, if uv is missing
 uv tool install --managed-python graph-me
-graph-me init
+graph-me init          # writes ~/graph-me/config.yaml from config-template.yaml
 graph-me where
 ```
+
+Edit `config.yaml` to list your sources. [`config-template.yaml`](config-template.yaml) documents every option.
 
 ## Principles
 

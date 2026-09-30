@@ -1,5 +1,4 @@
 import stat
-from pathlib import Path
 
 import pytest
 from pydantic import ValidationError
@@ -70,16 +69,10 @@ def test_ensure_output_is_private_and_git_ignored(tmp_path):
     assert (out / ".gitignore").read_text().splitlines()[-1] == "*"
 
 
-def test_load_config_example_is_valid():
-    from importlib import resources
-
-    text = resources.files("graph_me").joinpath("config.example.yaml").read_text()
-    path = Path(__file__).parent / "_example.yaml"
-    try:
-        path.write_text(text)
-        cfg = config.load_config(path)
-    finally:
-        path.unlink()
+def test_config_template_is_valid(tmp_path):
+    path = tmp_path / "config.yaml"
+    path.write_text(config.template_text())
+    cfg = config.load_config(path)
     assert cfg.extraction.default_tier == "none"
     assert cfg.sources["docs"].type == "filesystem"
     assert cfg.sources["docs"].model_extra["paths"] == ["~/Documents", "~/Desktop"]
