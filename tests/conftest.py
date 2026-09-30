@@ -81,3 +81,36 @@ def full_config(docs: Path, mv_home: Path, contacts: Path, **people) -> Config:
         },
         blacklist=BlacklistConfig(paths=[str(docs / "Medical")]),
     )
+
+
+def assert_consistent(conn) -> None:
+    """Graph invariants that must hold after any scan or sync."""
+    one = lambda sql: conn.execute(sql).fetchone()[0]  # noqa: E731
+    assert (
+        one("SELECT count(*) FROM entities WHERE id NOT IN (SELECT entity_id FROM mentions)") == 0
+    )
+    assert (
+        one(
+            "SELECT count(*) FROM facts WHERE id NOT IN "
+            "(SELECT fact_id FROM evidence WHERE fact_id IS NOT NULL)"
+        )
+        == 0
+    )
+    assert (
+        one(
+            "SELECT count(*) FROM relations WHERE id NOT IN "
+            "(SELECT relation_id FROM evidence WHERE relation_id IS NOT NULL)"
+        )
+        == 0
+    )
+    assert (
+        one(
+            "SELECT count(*) FROM relations r WHERE weight != "
+            "(SELECT count(*) FROM evidence e WHERE e.relation_id = r.id)"
+        )
+        == 0
+    )
+    # FTS indexes match their tables (raises if not)
+    conn.execute("INSERT INTO chunks_fts(chunks_fts) VALUES ('integrity-check')")
+    conn.execute("INSERT INTO items_fts(items_fts) VALUES ('integrity-check')")
+    assert conn.execute("PRAGMA foreign_key_check").fetchall() == []

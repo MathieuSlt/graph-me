@@ -19,7 +19,7 @@ from functools import cache
 from pathlib import Path
 
 from graph_me.config import BlacklistConfig, SourceConfig
-from graph_me.connectors.base import Item
+from graph_me.connectors.base import Item, SourceUnavailable
 from graph_me.pipeline.parse import is_supported
 
 DEFAULT_EXCLUDE = (
@@ -91,6 +91,12 @@ class FilesystemConnector:
         return any(path == b or path.is_relative_to(b) for b in self.blocked)
 
     def _walk(self) -> Iterator[Path]:
+        missing = [str(r) for r in self.roots if not r.exists()]
+        if missing:
+            raise SourceUnavailable(
+                f"source {self.name!r}: {', '.join(missing)} not found. Reconnect the drive, "
+                "or remove the path from config.yaml if you deleted it on purpose."
+            )
         seen: set[Path] = set()
         for root in self.roots:
             if root.is_file():

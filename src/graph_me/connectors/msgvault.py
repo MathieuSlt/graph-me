@@ -28,7 +28,7 @@ from pathlib import Path
 from urllib.parse import quote
 
 from graph_me.config import BlacklistConfig, SourceConfig
-from graph_me.connectors.base import Attachment, Contact, Item, Party
+from graph_me.connectors.base import Attachment, Contact, Item, Party, SourceUnavailable
 from graph_me.connectors.vcard import contact_text
 from graph_me.pipeline.parse import html_to_text
 from graph_me.pipeline.tier0.identity import norm_bday
@@ -55,8 +55,8 @@ _RAW_SOURCES = ("carddav_import", "vcard_import", "user")  # address-book data, 
 _BATCH = 500
 
 
-class MsgvaultSchemaError(RuntimeError):
-    pass
+class MsgvaultSchemaError(SourceUnavailable):
+    """msgvault's database doesn't have the columns graph-me reads (unsupported version)."""
 
 
 def _db_path(value: str | None) -> Path:
@@ -97,7 +97,7 @@ class MsgvaultConnector:
     def conn(self) -> sqlite3.Connection:
         if self._conn is None:
             if not self.path.is_file():
-                raise FileNotFoundError(
+                raise SourceUnavailable(
                     f"source {self.name!r}: msgvault database not found at {self.path}. "
                     "Install msgvault and sync an account, or set `db:` in config.yaml."
                 )

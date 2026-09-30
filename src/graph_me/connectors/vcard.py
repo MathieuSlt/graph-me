@@ -14,7 +14,7 @@ from collections.abc import Iterable, Iterator
 from pathlib import Path
 
 from graph_me.config import BlacklistConfig, SourceConfig
-from graph_me.connectors.base import Contact, Item, Party
+from graph_me.connectors.base import Contact, Item, Party, SourceUnavailable
 from graph_me.pipeline.parse import decode_bytes
 from graph_me.pipeline.tier0.identity import norm_bday
 
@@ -120,6 +120,12 @@ class VcardConnector:
         self._cards: dict[str, tuple[Path, dict[str, list[str]], str]] = {}
 
     def _files(self) -> Iterator[Path]:
+        missing = [str(r) for r in self.roots if not r.exists()]
+        if missing:
+            raise SourceUnavailable(
+                f"source {self.name!r}: {', '.join(missing)} not found. Reconnect the drive, "
+                "or remove the path from config.yaml if you deleted it on purpose."
+            )
         for root in self.roots:
             files = [root] if root.is_file() else sorted(root.rglob("*.vcf"))
             for f in files:

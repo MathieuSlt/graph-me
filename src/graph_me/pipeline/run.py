@@ -1,8 +1,12 @@
-"""Tier 0 scan: connectors -> parse -> blacklist -> sanitize -> language -> chunks -> entities.
+"""Tier 0 scan and sync: connectors -> parse -> blacklist -> sanitize -> chunks -> entities.
 
-A scan processes new and changed items (by connector ``version``) and leaves unchanged ones
-alone. When the blacklist changed since the last scan, stored items it now covers are forgotten
-first. Forgetting items that disappeared from their source is the job of ``sync`` (M3).
+Both process new and changed items (by connector ``version``) and leave unchanged ones alone.
+When the blacklist changed since the last run, stored items it now covers are forgotten first.
+
+``sync`` also forgets what disappeared: items no longer listed by their source, and every item of
+a source removed from config.yaml. Two safety nets keep an unreachable source from wiping the
+index: connectors raise ``SourceUnavailable`` instead of listing nothing, and a sync refuses to
+forget more than half of a source (above ``MASS_FORGET_MIN`` items) unless explicitly allowed.
 """
 
 from __future__ import annotations
@@ -20,13 +24,15 @@ from pathlib import Path
 
 from graph_me.config import BlacklistConfig, Config
 from graph_me.connectors import registry
-from graph_me.connectors.base import Connector, Item, Party
+from graph_me.connectors.base import Connector, Item, Party, SourceUnavailable
 from graph_me.pipeline import chunk, lang, parse, sanitize
 from graph_me.pipeline.tier0 import entities, facts, people
 from graph_me.store import db, forget
 
 BATCH = 500
 MAX_ERRORS_KEPT = 20
+MASS_FORGET_MIN = 50  # a sync may always forget up to this many items of a source
+MASS_FORGET_SHARE = 0.5  # beyond it, forgetting more than this share needs allow_mass_forget
 
 
 @dataclass
@@ -38,7 +44,9 @@ class SourceStats:
     blacklisted: int = 0
     parse_errors: int = 0
     flagged: int = 0  # items with a non-zero injection risk score
-    errors: list[str] = field(default_factory=list)
+    forgotten: int = 0  # sync: items gone from the source, removed from the graph
+    errors: list[str] = field(default_factory=list)  # unreadable items
+    failure: str | None = None  # the whole source was skipped (unavailable, guard...)
 
 
 Progress = Callable[[str, int, int], None]  # (source, done, total)
@@ -129,6 +137,24 @@ def default_workers() -> int:
 class ScanReport:
     sources: dict[str, SourceStats] = field(default_factory=dict)
     forgotten_blacklisted: int = 0  # stored items removed because the blacklist now covers them
+    removed_sources: dict[str, int] = field(default_factory=dict)  # sync: source -> items forgotten
+    failures: dict[str, str] = field(default_factory=dict)  # removed sources that were kept
+
+    @property
+    def ok(self) -> bool:
+        return not self.failures and all(st.failure is None for st in self.sources.values())
+
+
+def _too_many(missing: int, known: int) -> bool:
+    return missing > MASS_FORGET_MIN and missing > MASS_FORGET_SHARE * known
+
+
+def _guard_message(what: str, missing: int, known: int) -> str:
+    return (
+        f"{what} would forget {missing} of {known} items. Is a drive unplugged or the source "
+        "moved? Nothing was forgotten. If this is intended, run `graph-me sync "
+        "--allow-mass-forget`."
+    )
 
 
 def apply_blacklist(
@@ -156,13 +182,49 @@ def scan(
     workers: int | None = None,
     progress: Progress | None = None,
 ) -> ScanReport:
+    """Add new items and update changed ones. Never forgets items missing from a source."""
+    return _run(conn, cfg, only_source=only_source, workers=workers, progress=progress)
+
+
+def sync(
+    conn: sqlite3.Connection,
+    cfg: Config,
+    *,
+    only_source: str | None = None,
+    workers: int | None = None,
+    progress: Progress | None = None,
+    allow_mass_forget: bool = False,
+) -> ScanReport:
+    """Mirror the sources: add, update, and forget what they no longer have."""
+    return _run(
+        conn,
+        cfg,
+        only_source=only_source,
+        workers=workers,
+        progress=progress,
+        forget_missing=True,
+        allow_mass_forget=allow_mass_forget,
+    )
+
+
+def _run(
+    conn: sqlite3.Connection,
+    cfg: Config,
+    *,
+    only_source: str | None,
+    workers: int | None,
+    progress: Progress | None,
+    forget_missing: bool = False,
+    allow_mass_forget: bool = False,
+) -> ScanReport:
     if only_source and only_source not in cfg.sources:
         raise ValueError(f"no source named {only_source!r} in config.yaml")
     ctx = people.PeopleContext.from_config(cfg.people)
     report = ScanReport(forgotten_blacklisted=apply_blacklist(conn, cfg.blacklist, ctx))
+    if forget_missing and not only_source:
+        _forget_removed_sources(conn, cfg, report, allow_mass_forget)
     blacklist = _Blacklist(cfg.blacklist, ctx)
     workers_ = _Workers(workers if workers is not None else default_workers())
-    results = report.sources
     try:
         for name, source in cfg.sources.items():
             if only_source and name != only_source:
@@ -174,17 +236,46 @@ def scan(
                                                  config_hash = excluded.config_hash""",
                 (name, source.type, _config_hash(source.model_dump())),
             )
-            results[name] = _scan_source(conn, name, connector, workers_, blacklist, progress)
-            conn.execute(
-                "UPDATE sources SET last_sync_at = ? WHERE id = ?",
-                (datetime.now(UTC).isoformat(timespec="seconds"), name),
+            stats = _scan_source(
+                conn,
+                name,
+                connector,
+                workers_,
+                blacklist,
+                progress,
+                forget_missing=forget_missing,
+                allow_mass_forget=allow_mass_forget,
             )
+            report.sources[name] = stats
+            if stats.failure is None:
+                conn.execute(
+                    "UPDATE sources SET last_sync_at = ? WHERE id = ?",
+                    (datetime.now(UTC).isoformat(timespec="seconds"), name),
+                )
             conn.commit()
     finally:
         workers_.close()
-    # Re-processed or newly blacklisted items may have left entities, facts or relations behind.
+    # Re-processed, forgotten or blacklisted items may have left entities, facts or relations.
     finish(conn)
     return report
+
+
+def _forget_removed_sources(
+    conn: sqlite3.Connection, cfg: Config, report: ScanReport, allow_mass_forget: bool
+) -> None:
+    """Sources removed from config.yaml: forget their items (guarded like any mass forget)."""
+    for (name,) in conn.execute("SELECT id FROM sources").fetchall():
+        if name in cfg.sources:
+            continue
+        ids = [r[0] for r in conn.execute("SELECT id FROM items WHERE source_id = ?", (name,))]
+        if len(ids) > MASS_FORGET_MIN and not allow_mass_forget:
+            report.failures[name] = _guard_message(
+                f"source {name!r} is no longer in config.yaml: removing it", len(ids), len(ids)
+            )
+            continue
+        report.removed_sources[name] = forget.forget_items(conn, ids)
+        conn.execute("DELETE FROM sources WHERE id = ?", (name,))
+        conn.commit()
 
 
 def finish(conn: sqlite3.Connection) -> None:
@@ -209,18 +300,36 @@ def _scan_source(
     workers: _Workers,
     blacklist: _Blacklist,
     progress: Progress | None,
+    *,
+    forget_missing: bool = False,
+    allow_mass_forget: bool = False,
 ) -> SourceStats:
     stats = SourceStats()
     known = dict(
         conn.execute("SELECT external_id, version FROM items WHERE source_id = ?", (source,))
     )
-    todo = []
-    for external_id, version in connector.list_ids():
-        stats.seen += 1
-        if known.get(external_id) == version:
-            stats.unchanged += 1
-        else:
-            todo.append(external_id)
+    todo, listed = [], set()
+    try:
+        # List everything first: if the source is unreachable, nothing has changed yet.
+        for external_id, version in connector.list_ids():
+            stats.seen += 1
+            listed.add(external_id)
+            if known.get(external_id) == version:
+                stats.unchanged += 1
+            else:
+                todo.append(external_id)
+    except SourceUnavailable as exc:
+        return SourceStats(failure=str(exc))
+
+    if forget_missing:
+        missing = [eid for eid in known if eid not in listed]
+        if missing and _too_many(len(missing), len(known)) and not allow_mass_forget:
+            return SourceStats(
+                seen=stats.seen,
+                failure=_guard_message(f"source {source!r}", len(missing), len(known)),
+            )
+        stats.forgotten = forget.forget_items(conn, (item_id(source, eid) for eid in missing))
+        conn.commit()
 
     for start in range(0, len(todo), BATCH):
         batch = list(connector.fetch(todo[start : start + BATCH]))
