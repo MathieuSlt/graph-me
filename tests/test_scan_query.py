@@ -16,8 +16,8 @@ LEASE = "Logement/Contrat_bail_2025.pdf"
 
 @pytest.fixture
 def scanned(conn, docs):
-    stats = run.scan(conn, docs_config(docs), workers=1)
-    return conn, docs, stats["docs"]
+    report = run.scan(conn, docs_config(docs), workers=1)
+    return conn, docs, report.sources["docs"]
 
 
 @pytest.mark.parametrize(
@@ -44,10 +44,10 @@ def test_unreadable_file_is_still_findable_by_name(scanned):
 def test_rescan_skips_unchanged_and_updates_changed(scanned):
     conn, docs, _ = scanned
     cfg = docs_config(docs)
-    assert run.scan(conn, cfg, workers=1)["docs"].unchanged == 11
+    assert run.scan(conn, cfg, workers=1).sources["docs"].unchanged == 11
 
     (docs / "notes/meeting_notes.md").write_text("Nouvelle note sur la piscine municipale.")
-    st = run.scan(conn, cfg, workers=1)["docs"]
+    st = run.scan(conn, cfg, workers=1).sources["docs"]
     assert (st.updated, st.unchanged) == (1, 10)
     assert engine.search(conn, "piscine")[0].title == "meeting_notes.md"
     assert all(h.title != "meeting_notes.md" for h in engine.search(conn, "weekly sync"))
@@ -56,7 +56,7 @@ def test_rescan_skips_unchanged_and_updates_changed(scanned):
 def test_blacklist_pattern_drops_items(conn, docs):
     cfg = docs_config(docs)
     cfg.blacklist = BlacklistConfig(paths=[str(docs / "Medical")], patterns=[r"crêpes?"])
-    st = run.scan(conn, cfg, workers=1)["docs"]
+    st = run.scan(conn, cfg, workers=1).sources["docs"]
     assert st.blacklisted == 1
     assert engine.search(conn, "farine") == []
 
@@ -95,8 +95,71 @@ def test_injection_is_flagged_and_language_detected(scanned):
 
 
 def test_process_pool_gives_same_result(conn, docs):
-    st = run.scan(conn, docs_config(docs), workers=2)["docs"]
+    st = run.scan(conn, docs_config(docs), workers=2).sources["docs"]
     assert (st.added, st.parse_errors) == (11, 1)
+
+
+def _count(conn, sql, *args):
+    return conn.execute(sql, args).fetchone()[0]
+
+
+def test_blacklisting_a_scanned_file_forgets_it_everywhere(scanned):
+    """Regression: adding a file to the blacklist after a scan must remove it from the store."""
+    conn, docs, _ = scanned
+    target = str(docs / "notes/recette_crepes.md")
+    sibling = str(docs / "notes/meeting_notes.md")
+    assert _count(conn, "SELECT count(*) FROM aliases WHERE value = ?", target) == 1
+
+    cfg = docs_config(docs)
+    cfg.blacklist.paths.append(target)
+    report = run.scan(conn, cfg, workers=1)
+
+    assert report.forgotten_blacklisted == 1
+    assert _count(conn, "SELECT count(*) FROM items WHERE uri = ?", target) == 0
+    assert _count(conn, "SELECT count(*) FROM aliases WHERE value = ?", target) == 0
+    assert engine.search(conn, "farine crêpes") == []
+    # the shared "notes" project and the sibling file are still backed by another item
+    assert _count(conn, "SELECT count(*) FROM items WHERE uri = ?", sibling) == 1
+    assert (
+        _count(conn, "SELECT count(*) FROM entities WHERE kind = 'project' AND name = 'notes'") == 1
+    )
+    # nothing uncited is left behind
+    assert (
+        _count(
+            conn, "SELECT count(*) FROM entities WHERE id NOT IN (SELECT entity_id FROM mentions)"
+        )
+        == 0
+    )
+    assert (
+        _count(
+            conn,
+            "SELECT count(*) FROM relations WHERE id NOT IN "
+            "(SELECT relation_id FROM evidence WHERE relation_id IS NOT NULL)",
+        )
+        == 0
+    )
+
+    # unchanged blacklist: the purge check is skipped on the next scan
+    assert run.scan(conn, cfg, workers=1).forgotten_blacklisted == 0
+
+
+def test_blacklisting_a_folder_or_pattern_forgets_matching_items(scanned):
+    conn, docs, _ = scanned
+    cfg = docs_config(docs)
+    cfg.blacklist.paths.append(str(docs / "Logement"))
+    cfg.blacklist.patterns.append(r"randonn[ée]e")
+    report = run.scan(conn, cfg, workers=1)
+    assert report.forgotten_blacklisted == 3  # 2 files in Logement + article.html
+    assert engine.search(conn, "bail") == []
+    assert all(h.title != "article.html" for h in engine.search(conn, "Mont Blanc randonnée"))
+    assert _count(conn, "SELECT count(*) FROM entities WHERE name = 'Logement'") == 0
+
+
+def test_blacklist_path_prefix_does_not_catch_siblings(scanned):
+    conn, docs, _ = scanned
+    cfg = docs_config(docs)
+    cfg.blacklist.paths.append(str(docs / "note"))  # not a prefix of notes/
+    assert run.scan(conn, cfg, workers=1).forgotten_blacklisted == 0
 
 
 def test_unknown_source_type_is_reported(conn, docs):

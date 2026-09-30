@@ -1,7 +1,8 @@
 """Tier 0 scan: connectors -> parse -> blacklist -> sanitize -> language -> chunks -> entities.
 
 A scan processes new and changed items (by connector ``version``) and leaves unchanged ones
-alone. Forgetting items that disappeared is the job of ``sync`` (M3).
+alone. When the blacklist changed since the last scan, stored items it now covers are forgotten
+first. Forgetting items that disappeared from their source is the job of ``sync`` (M3).
 """
 
 from __future__ import annotations
@@ -22,6 +23,7 @@ from graph_me.connectors import registry
 from graph_me.connectors.base import Connector, Item
 from graph_me.pipeline import chunk, lang, parse, sanitize
 from graph_me.pipeline.tier0 import entities
+from graph_me.store import db, forget
 
 BATCH = 500
 MAX_ERRORS_KEPT = 20
@@ -107,6 +109,24 @@ def default_workers() -> int:
     return max(1, min(8, (os.cpu_count() or 2) - 1))
 
 
+@dataclass
+class ScanReport:
+    sources: dict[str, SourceStats] = field(default_factory=dict)
+    forgotten_blacklisted: int = 0  # stored items removed because the blacklist now covers them
+
+
+def apply_blacklist(conn: sqlite3.Connection, cfg: BlacklistConfig) -> int:
+    """Forget stored items the blacklist covers. Runs the full check only when it changed."""
+    digest = _config_hash(cfg.model_dump())
+    if db.get_meta(conn, "blacklist_hash") == digest:
+        return 0
+    ids = forget.blacklisted_item_ids(conn, cfg.paths, cfg.patterns)
+    removed = forget.forget_items(conn, ids)
+    db.set_meta(conn, "blacklist_hash", digest)
+    conn.commit()
+    return removed
+
+
 def scan(
     conn: sqlite3.Connection,
     cfg: Config,
@@ -114,12 +134,13 @@ def scan(
     only_source: str | None = None,
     workers: int | None = None,
     progress: Progress | None = None,
-) -> dict[str, SourceStats]:
+) -> ScanReport:
     if only_source and only_source not in cfg.sources:
         raise ValueError(f"no source named {only_source!r} in config.yaml")
+    report = ScanReport(forgotten_blacklisted=apply_blacklist(conn, cfg.blacklist))
     blacklist = _Blacklist(cfg.blacklist)
     workers_ = _Workers(workers if workers is not None else default_workers())
-    results: dict[str, SourceStats] = {}
+    results = report.sources
     try:
         for name, source in cfg.sources.items():
             if only_source and name != only_source:
@@ -139,7 +160,10 @@ def scan(
             conn.commit()
     finally:
         workers_.close()
-    return results
+    # Re-processed or newly blacklisted items may have left entities, facts or relations behind.
+    forget.cleanup_orphans(conn)
+    conn.commit()
+    return report
 
 
 def _config_hash(data: dict) -> str:

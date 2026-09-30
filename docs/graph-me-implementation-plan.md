@@ -193,7 +193,7 @@ CREATE TABLE query_log (ts TEXT, interface TEXT, query TEXT, result_ids TEXT);
 CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT);  -- schema_version, tiers run
 ```
 
-Forget runs in one transaction: delete the item (cascades to chunks, mentions, evidence), then delete relations and facts with no evidence left, then entities with no mentions and no aliases.
+Forget runs in one transaction: delete the item (cascades to chunks, mentions, evidence), then delete relations and facts with no evidence left, then entities with no mentions left (their aliases go with them: an entity exists only because some item mentions it).
 
 ## Connector interface
 

@@ -175,13 +175,15 @@ def scan(
         typer.echo(f"  {name}: {done}/{total}", err=True)
 
     try:
-        results = run.scan(conn, c.config, only_source=source, workers=workers, progress=progress)
+        report = run.scan(conn, c.config, only_source=source, workers=workers, progress=progress)
     except ValueError as exc:
         typer.secho(str(exc), fg=typer.colors.RED, err=True)
         raise typer.Exit(1) from exc
     finally:
         conn.close()
-    for name, st in results.items():
+    if report.forgotten_blacklisted:
+        typer.echo(f"blacklist: {report.forgotten_blacklisted} stored items forgotten")
+    for name, st in report.sources.items():
         typer.echo(
             f"{name}: {st.seen} seen, {st.added} added, {st.updated} updated, "
             f"{st.unchanged} unchanged, {st.blacklisted} blacklisted, "

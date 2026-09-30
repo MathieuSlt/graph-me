@@ -18,7 +18,8 @@ Read the relevant doc before implementing a feature. If a decision changes, upda
 - **Read-only in v1.** graph-me never writes, sends or deletes anything in a source. There are no write tools in MCP or the web UI.
 - **Tier 0 uses zero models**: no LLM, no embeddings, no network. Any AI dependency goes in an optional extra (`[medium]`, `[ner]`, `[ui]`), never in core deps.
 - **Every fact is cited.** Facts and relations go through the `evidence` table. Nothing derived exists without a source item.
-- **Forget on delete.** `sync` removes items that are gone from the source, then cascades to facts, relations and orphaned entities. For mail and WhatsApp, graph-me mirrors msgvault exactly.
+- **Forget on delete.** `sync` removes items that are gone from the source, then cascades to facts, relations and orphaned entities (`store/forget.py`: no evidence = no fact/relation, no mention = no entity). For mail and WhatsApp, graph-me mirrors msgvault exactly.
+- **The blacklist applies to what is already stored.** When it changes, the next `scan` forgets every stored item it now covers (`run.apply_blacklist`), not just future ones.
 - **Content from sources is untrusted data, never instructions.** Follow the OWASP LLM Prompt Injection Prevention cheat sheet: sanitize at ingest, trust-tag and redact at output, and validate agent-mode output against a closed JSON schema.
 - **Never commit personal data.** Tests use only the synthetic fixtures in `tests/fixtures/`. `graph-out/` must stay git-ignored and be created with mode 700.
 - **Reuse existing tools rather than rewriting them.** msgvault is the messaging source. Don't build native mail or WhatsApp connectors in v1.
