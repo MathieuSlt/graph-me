@@ -26,12 +26,31 @@ def connect(path: Path, *, readonly: bool = False) -> sqlite3.Connection:
     target = f"file:{quote(str(path))}" + ("?mode=ro" if readonly else "")
     conn = sqlite3.connect(target, uri=True)
     conn.row_factory = sqlite3.Row
+    load_vec(conn)
     conn.execute("PRAGMA foreign_keys = ON")
     conn.execute("PRAGMA busy_timeout = 5000")
     if not readonly:
         conn.execute("PRAGMA journal_mode = WAL")
         migrate(conn)
     return conn
+
+
+def load_vec(conn: sqlite3.Connection) -> bool:
+    """Load sqlite-vec (Tier 1 vectors) when installed and this Python allows extensions."""
+    try:
+        import sqlite_vec
+    except ImportError:
+        return False
+    if not hasattr(conn, "enable_load_extension"):
+        return False
+    try:
+        conn.enable_load_extension(True)
+        sqlite_vec.load(conn)
+    except sqlite3.Error:
+        return False
+    finally:
+        conn.enable_load_extension(False)
+    return True
 
 
 def schema_version(conn: sqlite3.Connection) -> int:

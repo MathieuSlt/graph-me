@@ -34,9 +34,9 @@ Definition of done:
 | Parsing | pypdfium2, openpyxl, charset-normalizer; .docx and .pptx read with the stdlib (zipfile + xml.etree) | Text only, no OCR; python-pptx is unmaintained (no commit since Aug 2024) |
 | Dates | dateparser | Multilingual date parsing without models |
 | Graph algorithms | networkx (Louvain communities, centrality) | Pure Python, enough for personal scale |
-| Embeddings (Tier 1) | fastembed (ONNX, multilingual model) | No PyTorch needed |
+| Embeddings (Tier 1) | fastembed (ONNX) with paraphrase-multilingual-MiniLM-L12-v2 (384 dims), cached in `~/.cache/graph-me/models` | No PyTorch needed; FR and EN in one space |
 | NER (Tier 1) | GLiNER multilingual, optional | Good multilingual entities; heavy, so opt-in |
-| LLM adapter | Thin in-house adapter: agent, Ollama, Anthropic, OpenAI-compatible | Avoids a heavy dependency; few providers needed |
+| LLM adapter | `llm.py`: agent (batch files), Ollama and OpenAI-compatible over httpx, Claude through the official `anthropic` SDK (default `claude-opus-5-5`, low effort, refusal fallback) | Few providers; Claude via its SDK as recommended |
 | MCP | Official `mcp` Python SDK | Standard, stdio transport |
 | Web UI | Starlette + htmx + Sigma.js, no build step | Small, contributors need no JS toolchain |
 | Tests | pytest, hypothesis for sanitizers | Standard |

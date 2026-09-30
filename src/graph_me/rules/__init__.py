@@ -16,6 +16,7 @@ class RulePack:
     injection: tuple[str, ...]
     birthday_greetings: tuple[str, ...] = field(default=())
     birthday_exclude: tuple[str, ...] = field(default=())
+    relations: dict[str, tuple[str, ...]] = field(default_factory=dict)
 
 
 @cache
@@ -36,6 +37,7 @@ def load_all() -> dict[str, RulePack]:
             injection=tuple(raw.get("injection", [])),
             birthday_greetings=tuple(raw.get("birthday", {}).get("greetings", [])),
             birthday_exclude=tuple(raw.get("birthday", {}).get("exclude", [])),
+            relations={k: tuple(v) for k, v in raw.get("relations", {}).items()},
         )
     return packs
 
@@ -46,3 +48,15 @@ def all_stopwords() -> frozenset[str]:
 
 def all_injection_phrases() -> tuple[str, ...]:
     return tuple(ph for p in load_all().values() for ph in p.injection)
+
+
+def relation_words() -> dict[str, str]:
+    """Folded relation word -> relation label, across all packs ("soeur" -> "sibling")."""
+    from graph_me.pipeline.sanitize import fold
+
+    return {
+        fold(word): relation
+        for pack in load_all().values()
+        for relation, words in pack.relations.items()
+        for word in words
+    }

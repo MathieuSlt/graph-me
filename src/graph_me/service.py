@@ -42,6 +42,18 @@ class Service:
         finally:
             conn.close()
 
+    def _embedder(self, conn: sqlite3.Connection):
+        """The model that built this graph's vectors, if any (queries must use the same one)."""
+        from graph_me.pipeline.tier1 import embed
+
+        stored = db.get_meta(conn, "embeddings_model")
+        if not stored or not embed.has_vectors(conn) or not embed.vec_loaded(conn):
+            return None
+        try:
+            return embed.get(stored.rsplit(":", 1)[0])
+        except ImportError:
+            return None
+
     def _log(self, conn: sqlite3.Connection, query: str, result_ids: list[str]) -> None:
         conn.execute(
             "INSERT INTO query_log(ts, interface, query, result_ids) VALUES (?, ?, ?, ?)",
@@ -65,8 +77,9 @@ class Service:
     ) -> dict:
         with self._conn() as conn:
             hits = engine.search(
-                conn, query, limit=limit, source=source, kind=kind, since=since, until=until
-            )
+                conn, query, limit=limit, source=source, kind=kind, since=since, until=until,
+                embedder=self._embedder(conn),
+            )  # fmt: skip
             result = pack.build(
                 query,
                 hits,

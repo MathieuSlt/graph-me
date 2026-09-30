@@ -4,7 +4,7 @@
 
 **graph-me** (working name): an open-source (MIT) Python tool that builds a local knowledge graph of a person's own data (files, mail, WhatsApp) so an AI agent can query it. Think graphify, but for personal data. You invoke it from an agent with "use graph-me".
 
-Status: M0, M1 (Tier 0 on files), M2 (msgvault, vCard, people, birthday facts) M3 (sync and forget) and M4 (MCP server, skill, REPORT.md) are done. Next is M5 (Tier 1). Development plan: milestones M0–M6 in `docs/graph-me-implementation-plan.md`.
+Status: M0, M1 (Tier 0 on files), M2 (msgvault, vCard, people, birthday facts) M3 (sync and forget), M4 (MCP server, skill, REPORT.md) and M5 (Tier 1: labels + embeddings, no NER yet) are done. Next is M6 (web UI and release). Development plan: milestones M0–M6 in `docs/graph-me-implementation-plan.md`.
 
 ## Source of truth
 
@@ -20,6 +20,8 @@ Read the relevant doc before implementing a feature. If a decision changes, upda
 - **Every fact is cited.** Facts and relations go through the `evidence` table. Nothing derived exists without a source item.
 - **Forget on delete.** `sync` removes items that are gone from the source, then cascades to facts, relations and orphaned entities (`store/forget.py`: no evidence = no fact/relation, no mention = no entity). For mail and WhatsApp, graph-me mirrors msgvault exactly.
 - **Never let an unreachable source look empty.** Connectors raise `SourceUnavailable` (missing folder, database) instead of listing nothing; `sync` skips the source. Mass forgetting (> half of a source above 50 items, or a removed source) needs `--allow-mass-forget`.
+- **Tier 1 answers are untrusted**: every model or agent answer goes through `pipeline/tier1/labels.py::validate` (closed schema, known ids, injection check) before `apply`. Labels are tier-1 facts/chunks cited by the labelled item; re-reading an item drops them.
+- **Claude calls use the official `anthropic` SDK** (`llm.py::AnthropicLLM`), default `claude-opus-5-5`, low effort, `fallbacks="default"`. Tests never call a real model or download embeddings (`ScriptedLLM`, `embeddings: hash`).
 - **One query path**: CLI and MCP both go through `service.Service` (logging, redaction, packs). MCP tools stay read-only and never get a `reveal` option.
 - **Check graph invariants in tests** with `conftest.assert_consistent` after any scan/sync that changes data.
 - **The blacklist applies to what is already stored.** When it changes, the next `scan` forgets every stored item it now covers (`run.apply_blacklist`), not just future ones.
@@ -47,7 +49,7 @@ graph-me init | scan [--tier none|medium|high] | sync [source] | enrich --tier m
 graph-me ingest <batch.out.json> | query "..." | where | ui | mcp | install-skill
 ```
 
-Implemented so far: `init`, `where`, `install-skill`, `scan` and `sync` (Tier 0: filesystem, msgvault, vcard), `query [--format text|json|markdown]`, `who`, `fact`, `mcp`, `report`. The others exit with code 2 and name the milestone that brings them.
+Implemented so far: `init`, `where`, `install-skill`, `scan` and `sync` (Tier 0: filesystem, msgvault, vcard), `query [--format text|json|markdown]`, `who`, `fact`, `mcp`, `report`, `enrich`, `ingest`. The others exit with code 2 and name the milestone that brings them.
 
 Dev:
 

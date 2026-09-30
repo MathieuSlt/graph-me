@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 import sqlite3
 
+from graph_me import rules
 from graph_me.config import PeopleConfig
 from graph_me.connectors.base import Party
 from graph_me.pipeline.sanitize import fold
@@ -38,6 +39,14 @@ def find_people(
         ):
             scores[eid] = scores.get(eid, 0) + 10
     words = set(_WORD.findall(fold(text)))
+    relations = {rel for word, rel in rules.relation_words().items() if word in words}
+    if relations:  # "ma soeur", "my landlord": people Tier 1 labelled with that relation
+        marks = ",".join("?" * len(relations))
+        for (eid,) in conn.execute(
+            f"SELECT entity_id FROM facts WHERE key = 'relation_to_user' AND value IN ({marks})",
+            sorted(relations),
+        ):
+            scores[eid] = scores.get(eid, 0) + 6
     if words & {"me", "moi", "myself"}:
         for (eid,) in conn.execute(
             "SELECT entity_id FROM aliases WHERE kind = ? AND value = ?", ME

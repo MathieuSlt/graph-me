@@ -264,15 +264,148 @@ def _run_pipeline(
 
 
 @app.command()
-def enrich() -> None:
-    """Upgrade an existing graph to Tier 1 or 2."""
-    _not_yet("M5")
+def enrich(
+    ctx: typer.Context,
+    tier: Annotated[
+        str, typer.Option(help="medium (Tier 1). high (Tier 2) comes after v1.")
+    ] = "medium",
+    llm: Annotated[
+        str | None,
+        typer.Option(
+            help="agent (default: your agent labels batch files), ollama, anthropic, "
+            "openai_compat. Overrides extraction.medium.llm.provider."
+        ),  # fmt: skip
+    ] = None,
+    source: Annotated[str | None, typer.Option(help="Only items of this source.")] = None,
+    since: Annotated[str | None, typer.Option(help="Only items dated on/after YYYY-MM-DD.")] = None,
+    path: Annotated[str | None, typer.Option(help="Only files under this folder.")] = None,
+    batch_size: Annotated[int, typer.Option(help="Strings per batch.")] = 50,
+    dry_run: Annotated[bool, typer.Option(help="Show what would be done and its size.")] = False,
+    status: Annotated[bool, typer.Option(help="List agent-mode batches not ingested yet.")] = False,
+    no_embeddings: Annotated[bool, typer.Option(help="Skip meaning-based vectors.")] = False,
+    yes: Annotated[bool, typer.Option(help="Don't ask before sending data to an API.")] = False,
+) -> None:
+    """Tier 1: label file names and contacts with an AI model, add meaning-based search.
+
+    Only short strings are labelled (file and folder names, contact cards): cheap even for
+    large archives. Every answer is validated against a strict schema before it is kept.
+    """
+    from graph_me import llm as llm_mod
+    from graph_me import report as report_mod
+    from graph_me.pipeline import enrich as enrich_mod
+
+    c = _ctx(ctx)
+    if tier != "medium":
+        _not_yet("after v1 (Tier 2)")
+    if status:
+        pending = enrich_mod.pending_batches(c.out)
+        if not pending:
+            typer.echo("No pending batches.")
+        for batch in pending:
+            answered = batch.with_name(batch.name.replace(".json", ".out.json")).exists()
+            typer.echo(f"{batch}  {'answered, run ingest' if answered else 'waiting for answer'}")
+        return
+    conn = _open_store(c)
+    scope = enrich_mod.Scope(source=source, since=since, path=path)
+    provider = llm or (c.config.extraction.medium.llm.provider
+                       if c.config.extraction.medium.llm else "agent")  # fmt: skip
+    try:
+        plan = enrich_mod.enrich(conn, c.config, c.out, provider=provider, scope=scope,
+                                 batch_size=batch_size, dry_run=True,
+                                 embeddings=not no_embeddings)  # fmt: skip
+        est = plan.estimate
+        typer.echo(
+            f"to label: {plan.candidates.get('files', 0)} file names, "
+            f"{plan.candidates.get('contacts', 0)} contacts in {est['batches']} batches "
+            f"(~{est['input_tokens']} input / ~{est['output_tokens']} output tokens); "
+            f"to embed: {est['chunks_to_embed']} chunks "
+            f"({c.config.extraction.medium.embeddings or 'local'} model, on this computer)"
+        )
+        if dry_run:
+            return
+        if provider in llm_mod.REMOTE and est["strings"] and not yes:
+            typer.confirm(
+                f"File names and contact cards will be sent to {provider}. Continue?", abort=True
+            )
+
+        def progress(task: str, done: int, total: int) -> None:
+            typer.echo(f"  {task}: {done}/{total}", err=True)
+
+        result = enrich_mod.enrich(conn, c.config, c.out, provider=provider, scope=scope,
+                                   batch_size=batch_size, embeddings=not no_embeddings,
+                                   progress=progress)  # fmt: skip
+        report_mod.write(conn, c.out)
+    except llm_mod.LLMError as exc:
+        typer.secho(f"model error: {exc}", fg="red", err=True)
+        raise typer.Exit(1) from exc
+    finally:
+        conn.close()
+
+    if result.batches_written:
+        typer.echo(f"{len(result.batches_written)} batch files written to {c.out / 'work'}.")
+        typer.echo(
+            "Answer each batch-NNNN.json in batch-NNNN.out.json (see its instructions and "
+            "answer_schema), then run: graph-me ingest --all"
+        )
+    elif provider != "agent":
+        extras = []
+        if result.stale:
+            extras.append(f"{result.stale} stale")
+        if result.rejected:
+            extras.append(f"{len(result.rejected)} answers rejected")
+        suffix = f" ({', '.join(extras)})" if extras else ""
+        typer.echo(f"labelled {result.labelled} items with {result.provider}{suffix}")
+    if result.embeddings:
+        typer.echo(f"embeddings: {result.embedded} chunks ({result.embeddings})")
 
 
 @app.command()
-def ingest() -> None:
-    """Merge agent-mode results produced during `enrich --llm agent`."""
-    _not_yet("M5")
+def ingest(
+    ctx: typer.Context,
+    answers: Annotated[
+        list[Path] | None, typer.Argument(help="batch-NNNN.out.json files to merge.")
+    ] = None,
+    all_answers: Annotated[
+        bool, typer.Option("--all", help="Ingest every answered batch in graph-out/work.")
+    ] = False,
+) -> None:
+    """Merge agent-mode answers written for `graph-me enrich` batches (validated first)."""
+    from graph_me import report as report_mod
+    from graph_me.pipeline import enrich as enrich_mod
+
+    c = _ctx(ctx)
+    paths = list(answers or [])
+    if all_answers:
+        paths += [
+            b.with_name(b.name.replace(".json", ".out.json"))
+            for b in enrich_mod.pending_batches(c.out)
+            if b.with_name(b.name.replace(".json", ".out.json")).exists()
+        ]
+    if not paths:
+        typer.echo("Nothing to ingest (answer a batch first, see `graph-me enrich --status`).")
+        raise typer.Exit(1)
+    conn = _open_store(c)
+    failed = False
+    try:
+        for answer in paths:
+            try:
+                r = enrich_mod.ingest(conn, c.out, answer)
+            except ValueError as exc:
+                typer.secho(f"{answer.name}: {exc}", fg="red", err=True)
+                failed = True
+                continue
+            typer.echo(
+                f"batch {r.batch}: {r.applied} labels applied"
+                f"{f', {r.stale} stale' if r.stale else ''}"
+                f"{f', {len(r.rejected)} rejected' if r.rejected else ''}"
+            )
+            for reason in r.rejected[:5]:
+                typer.echo(f"  rejected: {reason}", err=True)
+        report_mod.write(conn, c.out)
+    finally:
+        conn.close()
+    if failed:
+        raise typer.Exit(1)
 
 
 @app.command()

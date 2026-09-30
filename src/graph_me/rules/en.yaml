@@ -22,3 +22,16 @@ injection:
 birthday:
   greetings: [happy birthday, happy bday, hbd, many happy returns]
   exclude: [belated, late, yesterday, tomorrow, soon]
+
+relations:
+  sibling: [sister, brother, sis, bro, sibling]
+  parent: [mother, mom, mum, father, dad, parents]
+  child: [son, daughter, kid, kids, child]
+  spouse: [wife, husband, spouse]
+  partner: [girlfriend, boyfriend, partner, fiancee, fiance]
+  friend: [friend, buddy, mate]
+  colleague: [colleague, coworker, co-worker]
+  manager: [boss, manager]
+  landlord: [landlord, landlady]
+  doctor: [doctor, gp, physician]
+  family: [family, cousin, uncle, aunt, grandmother, grandfather, nephew, niece]

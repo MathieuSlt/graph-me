@@ -31,7 +31,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-medium = ["sqlite-vec==0.1.9", "fastembed>=0.8", "httpx>=0.28"]
+medium = ["sqlite-vec==0.1.9", "fastembed>=0.8", "httpx>=0.28", "anthropic>=1.9"]
 ner = ["gliner>=0.2.29"]
 ui = ["starlette>=1.7", "uvicorn>=0.35", "jinja2>=3.1"]
 all = ["graph-me[medium,ner,ui]"]

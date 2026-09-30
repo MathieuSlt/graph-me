@@ -1,4 +1,5 @@
-"""Tier 0 search: SQLite FTS5 (BM25) over chunk text plus item titles and paths."""
+"""Search: SQLite FTS5 (BM25) over chunk text plus item titles and paths (Tier 0), merged with
+meaning-based vector search when Tier 1 embeddings exist (reciprocal rank fusion)."""
 
 from __future__ import annotations
 
@@ -11,6 +12,7 @@ from graph_me import rules
 _TOKEN = re.compile(r"\w+")
 _CANDIDATES = 200
 TITLE_WEIGHT = 2.0  # a match in the file name counts double
+RRF_K = 60  # reciprocal rank fusion constant
 PREFIX_MIN_LEN = 4  # "bail" also matches "bails"; shorter words match exactly
 
 
@@ -50,13 +52,20 @@ def search(
     kind: str | None = None,
     since: str | None = None,
     until: str | None = None,
+    embedder=None,
 ) -> list[Hit]:
+    """``embedder``: a Tier 1 embedder (pipeline/tier1/embed.py) to add meaning-based hits."""
     match = fts_query(text)
-    if not match:
-        return []
-
     scores: dict[str, float] = {}
     snippets: dict[str, str] = {}
+    if match:
+        _word_scores(conn, match, scores, snippets)
+    if embedder is not None:
+        _merge_vectors(conn, embedder, text, scores, snippets)
+    return _hits(conn, scores, snippets, limit, source, kind, since, until)
+
+
+def _word_scores(conn, match: str, scores: dict, snippets: dict) -> None:
     for row in conn.execute(
         """SELECT c.item_id, bm25(chunks_fts) AS rank,
                   snippet(chunks_fts, 0, '[', ']', ' … ', 24) AS snip
@@ -75,6 +84,32 @@ def search(
         (match, _CANDIDATES),
     ):
         scores[row["id"]] = scores.get(row["id"], 0.0) + TITLE_WEIGHT * -row["rank"]
+
+
+def _merge_vectors(conn, embedder, text: str, scores: dict, snippets: dict) -> None:
+    """Fuse word ranking and meaning ranking: score = sum of 1 / (RRF_K + rank)."""
+    from graph_me.pipeline.tier1 import embed
+
+    near = embed.nearest(conn, embedder, text, k=_CANDIDATES)
+    if not near:
+        return
+    word_rank = {iid: r for r, iid in enumerate(sorted(scores, key=scores.get, reverse=True))}
+    vec_rank: dict[str, int] = {}
+    for item_id, chunk_id, _distance in near:
+        if item_id not in vec_rank:
+            vec_rank[item_id] = len(vec_rank)
+            if item_id not in snippets:
+                row = conn.execute("SELECT text FROM chunks WHERE id = ?", (chunk_id,)).fetchone()
+                snippets[item_id] = " ".join(row[0].split())[:240] if row else ""
+    fused = {}
+    for iid in set(word_rank) | set(vec_rank):
+        fused[iid] = sum(1.0 / (RRF_K + ranks[iid]) for ranks in (word_rank, vec_rank)
+                         if iid in ranks)  # fmt: skip
+    scores.clear()
+    scores.update(fused)
+
+
+def _hits(conn, scores, snippets, limit, source, kind, since, until) -> list[Hit]:
     if not scores:
         return []
 

@@ -20,10 +20,18 @@ people:
 
 extraction:
   # none = Tier 0, no model at all (free, offline; results are less convincing without AI)
-  # medium = Tier 1, high = Tier 2
+  # medium = Tier 1 (`graph-me enrich`), high = Tier 2 (after v1)
   default_tier: none
   medium:
-    llm: { provider: agent }        # agent | ollama | anthropic | openai_compat
+    # Who labels file names and contacts (short strings only):
+    #   agent          your agent (Claude Code) answers batch files: no API key, nothing to install
+    #   ollama         a local model (model: qwen3:4b by default; base_url for another host)
+    #   anthropic      Claude API (model: claude-opus-5-5 by default; key from ANTHROPIC_API_KEY
+    #                  or `ant auth login`). Sends file names and contact cards to Anthropic.
+    #   openai_compat  any OpenAI-compatible server (model: required; api_key_env, base_url)
+    llm: { provider: agent }
+    # Meaning-based search: "local" runs a multilingual model on this computer (downloaded once,
+    # ~220 MB, into ~/.cache/graph-me/models), "none" turns it off.
     embeddings: local
   high:
     llm: { provider: anthropic, model: claude-sonnet-5-5 }
