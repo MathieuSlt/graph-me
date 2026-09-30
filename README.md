@@ -2,9 +2,9 @@
 
 A local knowledge graph of your personal data (files, mail, WhatsApp) that your AI agent can query. Think [graphify](https://github.com/Graphify-Labs/graphify), for your own life.
 
-> Status: early development (milestone M4). Tier 0 search over files, mail, chats and contacts,
-> people and birthdays, `sync`, and use from Claude Code (skill + MCP server). AI enrichment
-> (Tier 1) and the web UI come next.
+> Status: early development (milestone M5). Search over files, mail, chats and contacts, people
+> and birthdays, `sync`, use from Claude Code (skill + MCP server), and Tier 1 AI enrichment.
+> The web UI and the first release come next.
 > See `docs/` for the design.
 
 ## Install
@@ -28,6 +28,31 @@ graph-me query "wifi" --json       # the context pack an agent receives
 graph-me who "Sophie"              # a person: identifiers, facts, closest contacts
 graph-me fact Sophie birthday      # one fact, with the messages and cards it came from
 ```
+
+### Tier 1: AI enrichment
+
+```bash
+uv tool install --managed-python "graph-me[medium]"   # adds the local model and sqlite-vec
+graph-me enrich --dry-run    # how much there is to do
+graph-me enrich              # agent mode: writes batch files for your agent, then embeds
+graph-me ingest --all        # after your agent answered the batches
+```
+
+Tier 1 labels only short strings, so it stays cheap on large archives:
+
+- file names and folders get a type, a topic and keywords in French and English, so
+  "rental contract" finds `Contrat_bail_2025.pdf`;
+- contacts get a relation to you ("sibling", "landlord"...), so "when is my sister's birthday?"
+  finds Sophie without her name.
+
+Who labels is up to you (`extraction.medium.llm`): your agent (default: no API key, just ask
+Claude Code "use graph-me to enrich the db"), a local Ollama model, the Claude API, or any
+OpenAI-compatible server. graph-me asks before sending names to an API. Every answer is checked
+against a strict schema; a label containing instructions, an unknown value or an unknown item is
+rejected, so a malicious file name can at worst get a wrong label.
+
+Meaning-based search runs a small multilingual model on your computer (downloaded once, about
+220 MB): "dessert recipe" finds "recette de crêpes". It is combined with word search.
 
 ### Use it from Claude Code (or any MCP client)
 

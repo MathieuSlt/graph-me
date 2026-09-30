@@ -37,15 +37,20 @@ PROJECT_NAME = "graph-me"
 class LLMConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    provider: Literal["agent", "ollama", "anthropic", "openai_compat", "fake"] = "agent"
+    # Tests and embedders may register more providers (llm.register), so any name is accepted
+    # here; unknown ones fail when the model is created.
+    provider: str = "agent"
     model: str | None = None
-    base_url: str | None = None
+    base_url: str | None = None  # ollama / openai_compat servers
+    # Name of the environment variable holding the API key (never put keys in config.yaml).
+    api_key_env: str | None = None
 
 
 class TierConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     llm: LLMConfig | None = None
+    # "local" (multilingual model run on this computer), "none", or a fastembed model name.
     embeddings: str | None = None
     ner: str | None = None
 

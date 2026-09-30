@@ -27,3 +27,18 @@ injection:
 birthday:
   greetings: [joyeux anniversaire, joyeux anniv, bon anniversaire, bon anniv]
   exclude: [retard, hier, demain, bientôt]
+
+# Words that name a relation to the user ("ma soeur"), mapped to the relation labels Tier 1
+# assigns to contacts. Used to answer "quand est l'anniversaire de ma soeur ?".
+relations:
+  sibling: [soeur, sœur, frère, frere, frangin, frangine]
+  parent: [mère, mere, maman, père, pere, papa, parents]
+  child: [fils, fille, enfant, enfants]
+  spouse: [femme, mari, épouse, epouse, époux, epoux]
+  partner: [copine, copain, compagne, compagnon, conjoint, conjointe]
+  friend: [ami, amie, pote, copains]
+  colleague: [collègue, collegue, collègues]
+  manager: [chef, patron, patronne, manager]
+  landlord: [propriétaire, proprietaire, proprio, bailleur]
+  doctor: [médecin, medecin, docteur, généraliste]
+  family: [famille, cousin, cousine, oncle, tante, grand-mère, grand-père, neveu, nièce]

@@ -12,6 +12,7 @@ Facts, relations and entities still backed by another item survive.
 
 from __future__ import annotations
 
+import contextlib
 import re
 import sqlite3
 from collections.abc import Iterable
@@ -50,6 +51,13 @@ def cleanup_orphans(conn: sqlite3.Connection) -> dict[str, int]:
     conn.execute(
         "DELETE FROM communities WHERE id NOT IN (SELECT community_id FROM community_members)"
     )
+    # Vectors have no foreign key (virtual table): drop those of deleted chunks. Without the
+    # extension loaded this is skipped; search joins vectors to chunks, so leftovers are unused.
+    if conn.execute("SELECT count(*) FROM sqlite_master WHERE name = 'chunks_vec'").fetchone()[0]:
+        with contextlib.suppress(sqlite3.OperationalError):
+            removed["vectors"] = conn.execute(
+                "DELETE FROM chunks_vec WHERE chunk_id NOT IN (SELECT id FROM chunks)"
+            ).rowcount
     return removed
 
 
