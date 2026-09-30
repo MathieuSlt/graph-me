@@ -7,6 +7,7 @@ import pytest
 from conftest import needs_msgvault
 
 from graph_me.config import BlacklistConfig, SourceConfig
+from graph_me.connectors.base import SourceUnavailable
 from graph_me.connectors.msgvault import MsgvaultConnector, MsgvaultSchemaError
 
 pytestmark = needs_msgvault
@@ -129,7 +130,7 @@ def test_raw_address_book_entries_become_contacts(mv):
 
 def test_missing_database_and_schema_change_are_clear(mv, tmp_path):
     home, _ = mv
-    with pytest.raises(FileNotFoundError, match="msgvault database not found"):
+    with pytest.raises(SourceUnavailable, match="msgvault database not found"):
         list(connector(tmp_path / "nowhere").list_ids())
     raw = sqlite3.connect(home / "msgvault.db")
     raw.execute("ALTER TABLE attachments RENAME COLUMN content_hash TO sha")

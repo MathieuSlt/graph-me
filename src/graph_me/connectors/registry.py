@@ -20,8 +20,16 @@ def _builtins() -> dict[str, type]:
     }
 
 
+_registered: dict[str, type] = {}
+
+
+def register(type_name: str, cls: type) -> None:
+    """Register a connector class in-process (tests, embedding). Plugins use entry points."""
+    _registered[type_name] = cls
+
+
 def available() -> dict[str, type]:
-    found = _builtins()
+    found = {**_builtins(), **_registered}
     for ep in entry_points(group="graph_me.connectors"):
         found.setdefault(ep.name, ep.load())
     return found

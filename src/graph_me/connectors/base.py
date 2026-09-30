@@ -63,6 +63,14 @@ class Item(BaseModel):
     extra: dict = Field(default_factory=dict)
 
 
+class SourceUnavailable(RuntimeError):
+    """The source can't be read right now (folder missing, drive unplugged, database absent).
+
+    Connectors raise it instead of listing nothing, so ``sync`` never mistakes an unreachable
+    source for a source whose items were all deleted.
+    """
+
+
 @runtime_checkable
 class Connector(Protocol):
     type: str

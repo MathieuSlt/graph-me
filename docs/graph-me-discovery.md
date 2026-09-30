@@ -199,9 +199,11 @@ Where `graph-out` lives, first match wins:
 
 Contents of `graph-out/`: `graph.db` (SQLite), `graph.json`, `REPORT.md`, a `work/` folder for agent-mode batches, and a query log. The folder gets 700 permissions and is added to `.gitignore` automatically.
 
-Sync is manual: `graph-me sync` (all sources) or `graph-me sync messages` (one source). It adds new items, updates changed ones and forgets deleted ones.
+Sync is manual: `graph-me sync` (all sources) or `graph-me sync --source messages` (one source). It adds new items, updates changed ones and forgets deleted ones, including every item of a source removed from `config.yaml`. `graph-me scan` only adds and updates.
 
-Forgetting follows msgvault exactly (decision A). Spam deleted through msgvault's deletion flow disappears from graph-me on the next sync. For each deleted item:
+Safety nets: an unreachable source (missing folder, unplugged drive, missing msgvault database) is skipped, never wiped, and a sync that would forget more than half of a source (above 50 items) stops unless run with `--allow-mass-forget`.
+
+Forgetting follows msgvault exactly (decision A): a message msgvault marks as deleted (locally, or at the source when its Gmail sync sees a deletion), purges with `gc`, or drops with `remove-account` disappears from graph-me on the next sync. For each deleted item:
 
 - the item, its chunks, embeddings and blobs are hard-deleted;
 - facts learned only from that item are deleted;

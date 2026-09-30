@@ -2,8 +2,8 @@
 
 A local knowledge graph of your personal data (files, mail, WhatsApp) that your AI agent can query. Think [graphify](https://github.com/Graphify-Labs/graphify), for your own life.
 
-> Status: early development (milestone M2). Tier 0 search over files, mail, chats and contacts
-> works, with people and birthdays. The MCP server and the Claude Code skill come next (M4).
+> Status: early development (milestone M3). Tier 0 search over files, mail, chats and contacts
+> works, with people and birthdays, and `sync` keeps the graph in step with your sources. The MCP server and the Claude Code skill come next (M4).
 > See `docs/` for the design.
 
 ## Install
@@ -21,11 +21,24 @@ Edit `config.yaml` to list your sources. [`config-template.yaml`](config-templat
 
 ```bash
 graph-me scan                      # index your files (Tier 0: no AI, offline)
+graph-me sync                      # later: add new items, update changed ones, forget deleted ones
 graph-me query "contrat de bail"   # cited results: path, snippet, source, date, trust
 graph-me query "wifi" --json       # the context pack an agent receives
 graph-me who "Sophie"              # a person: identifiers, facts, closest contacts
 graph-me fact Sophie birthday      # one fact, with the messages and cards it came from
 ```
+
+### Keeping up to date, and forgetting
+
+`graph-me sync` mirrors your sources. A file you delete, a message deleted in msgvault (for
+example spam deleted in Gmail and synced by msgvault), or a whole source removed from
+`config.yaml` is forgotten, along with everything learned only from it. A fact backed by
+something else stays: Sophie's birthday survives deleting one message if her contact card
+still says it. Sync is manual: run it when you want.
+
+Two safety nets protect the index. A source that can't be reached (unplugged drive, missing
+folder, missing msgvault database) is skipped, never wiped. And a sync that would forget more
+than half of a source (above 50 items) stops and asks for `--allow-mass-forget`.
 
 ### Mail, chats and contacts
 

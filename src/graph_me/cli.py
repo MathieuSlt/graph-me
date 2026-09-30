@@ -155,12 +155,49 @@ def scan(
     tier: Annotated[str, typer.Option(help="none (Tier 0), medium or high.")] = "none",
     workers: Annotated[int | None, typer.Option(help="Parallel parsers (default: CPUs-1).")] = None,
 ) -> None:
-    """Build or update the graph from the configured sources (Tier 0: no model)."""
+    """Build or update the graph from the configured sources (Tier 0: no model).
+
+    Adds new items and updates changed ones. Use `sync` to also forget deleted ones.
+    """
+    if tier != "none":
+        _not_yet("M5 (Tier 1) / after v1 (Tier 2)")
+    _run_pipeline(ctx, source=source, workers=workers, forget=False)
+
+
+@app.command()
+def sync(
+    ctx: typer.Context,
+    source: Annotated[str | None, typer.Option(help="Only this source from config.yaml.")] = None,
+    workers: Annotated[int | None, typer.Option(help="Parallel parsers (default: CPUs-1).")] = None,
+    allow_mass_forget: Annotated[
+        bool,
+        typer.Option(
+            help="Allow forgetting more than half of a source (big deletions, removed sources)."
+        ),  # fmt: skip
+    ] = False,
+) -> None:
+    """Mirror your sources: add new items, update changed ones, forget deleted ones.
+
+    Deleted files, messages deleted in msgvault and sources removed from config.yaml are
+    forgotten, with everything learned only from them. An unreachable source (unplugged drive,
+    missing msgvault database) is skipped, never wiped.
+    """
+    _run_pipeline(
+        ctx, source=source, workers=workers, forget=True, allow_mass_forget=allow_mass_forget
+    )
+
+
+def _run_pipeline(
+    ctx: typer.Context,
+    *,
+    source: str | None,
+    workers: int | None,
+    forget: bool,
+    allow_mass_forget: bool = False,
+) -> None:
     from graph_me.pipeline import run
 
     c = _ctx(ctx)
-    if tier != "none":
-        _not_yet("M5 (Tier 1) / after v1 (Tier 2)")
     if not c.config.sources:
         typer.secho(f"No sources in {c.config_path}. Add one under `sources:`.", fg="red", err=True)
         raise typer.Exit(1)
@@ -175,28 +212,45 @@ def scan(
         typer.echo(f"  {name}: {done}/{total}", err=True)
 
     try:
-        report = run.scan(conn, c.config, only_source=source, workers=workers, progress=progress)
+        if forget:
+            report = run.sync(
+                conn,
+                c.config,
+                only_source=source,
+                workers=workers,
+                progress=progress,
+                allow_mass_forget=allow_mass_forget,
+            )
+        else:
+            report = run.scan(
+                conn, c.config, only_source=source, workers=workers, progress=progress
+            )
     except ValueError as exc:
         typer.secho(str(exc), fg=typer.colors.RED, err=True)
         raise typer.Exit(1) from exc
     finally:
         conn.close()
+
     if report.forgotten_blacklisted:
         typer.echo(f"blacklist: {report.forgotten_blacklisted} stored items forgotten")
+    for name, count in report.removed_sources.items():
+        typer.echo(f"{name}: removed from config.yaml, {count} items forgotten")
+    for name, message in report.failures.items():
+        typer.secho(f"{name}: kept. {message}", fg=typer.colors.RED, err=True)
     for name, st in report.sources.items():
+        if st.failure:
+            typer.secho(f"{name}: skipped. {st.failure}", fg=typer.colors.RED, err=True)
+            continue
+        forgotten = f"{st.forgotten} forgotten, " if forget else ""
         typer.echo(
-            f"{name}: {st.seen} seen, {st.added} added, {st.updated} updated, "
+            f"{name}: {st.seen} seen, {st.added} added, {st.updated} updated, {forgotten}"
             f"{st.unchanged} unchanged, {st.blacklisted} blacklisted, "
             f"{st.parse_errors} unreadable, {st.flagged} flagged"
         )
         for err in st.errors:
             typer.echo(f"  unreadable: {err}", err=True)
-
-
-@app.command()
-def sync() -> None:
-    """Add new items, update changed ones and forget deleted ones."""
-    _not_yet("M3")
+    if not report.ok:
+        raise typer.Exit(1)
 
 
 @app.command()
