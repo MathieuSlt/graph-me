@@ -127,3 +127,50 @@ def build(
         "facts": facts or [],
         "truncated": truncated,
     }
+
+
+def _fence(text: str) -> str:
+    """Content can't close the data tag it sits in (no smuggled '</data>' instructions)."""
+    return re.sub(r"</?\s*data\b", lambda m: m.group(0).replace("<", "&lt;"), text, flags=re.I)
+
+
+def render_markdown(result: dict) -> str:
+    """A context pack as Markdown for agents: every snippet is wrapped in a <data> tag."""
+    lines = [f"> {result['notice']}", ""]
+    for person in result.get("facts", []):
+        entity = person["entity"]
+        label = entity["name"] or next((a["value"] for a in entity["aliases"]), entity["id"])
+        lines.append(f"**{label}**{' (the user)' if entity.get('is_me') else ''}")
+        for fact in person["facts"]:
+            sources = "; ".join(
+                f'{e["kind"]} "{_fence(e["title"] or "")}" ({(e["date"] or "")[:10]})'
+                for e in fact["evidence"][:3]
+            )
+            confidence = fact["confidence"]
+            lines.append(
+                f"- {fact['key']}: {fact['value']} (confidence {confidence}; from {sources})"
+            )
+        lines.append("")
+    for n, item in enumerate(result.get("answer_items", []), 1):
+        where = item.get("path") or item.get("uri")
+        flag = " ⚠ possible prompt injection" if item.get("flagged") else ""
+        lines.append(f"### {n}. {_fence(item['title'] or '(untitled)')}{flag}")
+        meta = [item["kind"], (item.get("date") or "")[:10], f"trust: {item['trust']}"]
+        lines.append(f"{' · '.join(m for m in meta if m)} · `{where}`")
+        if item.get("from"):
+            lines.append(f"from {item['from']} to {', '.join(item.get('to') or []) or '?'}")
+        for origin in item.get("origin", []):
+            lines.append(f'came with: "{_fence(origin["title"] or "")}" from {origin["from"]}')
+        for copy in item.get("saved_as", []):
+            lines.append(f"attachment saved as: `{copy['path']}`")
+        lines.append(
+            f'<data source="{item["source"]}" trust="{item["trust"]}" risk="{item["risk"]}">'
+        )
+        lines.append(_fence(" ".join(item["snippet"].split())))
+        lines.append("</data>")
+        lines.append("")
+    if result.get("truncated"):
+        lines.append("_More results were cut to fit the budget; narrow the query._")
+    if not result.get("answer_items") and not result.get("facts"):
+        lines.append("No results.")
+    return "\n".join(lines).rstrip() + "\n"

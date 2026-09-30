@@ -2,8 +2,9 @@
 
 A local knowledge graph of your personal data (files, mail, WhatsApp) that your AI agent can query. Think [graphify](https://github.com/Graphify-Labs/graphify), for your own life.
 
-> Status: early development (milestone M3). Tier 0 search over files, mail, chats and contacts
-> works, with people and birthdays, and `sync` keeps the graph in step with your sources. The MCP server and the Claude Code skill come next (M4).
+> Status: early development (milestone M4). Tier 0 search over files, mail, chats and contacts,
+> people and birthdays, `sync`, and use from Claude Code (skill + MCP server). AI enrichment
+> (Tier 1) and the web UI come next.
 > See `docs/` for the design.
 
 ## Install
@@ -27,6 +28,23 @@ graph-me query "wifi" --json       # the context pack an agent receives
 graph-me who "Sophie"              # a person: identifiers, facts, closest contacts
 graph-me fact Sophie birthday      # one fact, with the messages and cards it came from
 ```
+
+### Use it from Claude Code (or any MCP client)
+
+```bash
+graph-me install-skill                        # ~/.claude/skills/graph-me/SKILL.md
+claude mcp add graph-me -- graph-me mcp       # read-only MCP server over stdio
+```
+
+Then ask: *"use graph-me: where is the lease PDF my landlord emailed me, and when is my
+sister's birthday?"*. The MCP tools are `search`, `find_document`, `who_is`, `get_fact`,
+`timeline`, `related`, `get_item` and `status`. All are read-only, and none can reveal redacted
+secrets: an agent that just read a malicious email must not be able to ask for them.
+`graph-me query "..." --format markdown` gives the same results to agents without MCP.
+
+After every scan and sync, `graph-out/REPORT.md` summarizes what was indexed, the people you
+deal with most, upcoming birthdays, communities and questions worth asking; `graph.json` holds
+the graph for other tools.
 
 ### Keeping up to date, and forgetting
 

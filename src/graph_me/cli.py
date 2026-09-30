@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import shutil
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import datetime
 from importlib import resources
 from pathlib import Path
 from typing import Annotated
@@ -139,6 +139,12 @@ def _not_yet(milestone: str) -> None:
     raise typer.Exit(2)
 
 
+def _service(c: Context, interface: str = "cli"):
+    from graph_me.service import Service
+
+    return Service(c.config, c.db_path, interface)
+
+
 def _open_store(c: Context) -> db.sqlite3.Connection:
     if not c.db_path.exists():
         typer.secho(
@@ -228,6 +234,10 @@ def _run_pipeline(
     except ValueError as exc:
         typer.secho(str(exc), fg=typer.colors.RED, err=True)
         raise typer.Exit(1) from exc
+    else:
+        from graph_me import report as report_mod
+
+        report_mod.write(conn, c.out)
     finally:
         conn.close()
 
@@ -270,8 +280,11 @@ def query(
     ctx: typer.Context,
     text: Annotated[str, typer.Argument(help="What to look for.")],
     as_json: Annotated[
-        bool, typer.Option("--json", help="Print the context pack as JSON.")
+        bool, typer.Option("--json", help="Print the context pack as JSON (= --format json).")
     ] = False,
+    fmt: Annotated[
+        str, typer.Option("--format", help="text, json, or markdown (for agents).")
+    ] = "text",
     limit: Annotated[int, typer.Option(help="Maximum results.")] = 10,
     source: Annotated[str | None, typer.Option(help="Only this source.")] = None,
     kind: Annotated[str | None, typer.Option(help="file, email, message, contact.")] = None,
@@ -280,35 +293,22 @@ def query(
     reveal: Annotated[bool, typer.Option(help="Show redacted secrets (IBAN, keys...).")] = False,
 ) -> None:
     """Search the graph and print cited results."""
-    from graph_me.query import engine, graph, pack
+    from graph_me.query import pack
 
+    fmt = "json" if as_json else fmt
+    if fmt not in ("text", "json", "markdown"):
+        typer.secho("--format must be text, json or markdown.", fg="red", err=True)
+        raise typer.Exit(2)
     c = _ctx(ctx)
-    conn = _open_store(c)
-    try:
-        hits = engine.search(
-            conn, text, limit=limit, source=source, kind=kind, since=since, until=until
-        )
-        result = pack.build(
-            text,
-            hits,
-            facts=graph.facts_for_query(conn, text, c.config.people),
-            extras=graph.enrich_hits(conn, [h.item_id for h in hits]),
-            reveal=reveal,
-        )
-        conn.execute(
-            "INSERT INTO query_log(ts, interface, query, result_ids) VALUES (?, 'cli', ?, ?)",
-            (
-                datetime.now(UTC).isoformat(timespec="seconds"),
-                text,
-                json.dumps([i["id"] for i in result["answer_items"]]),
-            ),
-        )
-        conn.commit()
-    finally:
-        conn.close()
-
-    if as_json:
+    _open_store(c).close()
+    result = _service(c).search(
+        text, limit=limit, source=source, kind=kind, since=since, until=until, reveal=reveal
+    )
+    if fmt == "json":
         typer.echo(json.dumps(result, ensure_ascii=False, indent=2))
+        return
+    if fmt == "markdown":
+        typer.echo(pack.render_markdown(result), nl=False)
         return
     if not result["answer_items"] and not result["facts"]:
         typer.echo("No results.")
@@ -416,6 +416,31 @@ def ui() -> None:
 
 
 @app.command()
-def mcp() -> None:
-    """Start the read-only MCP server (stdio)."""
-    _not_yet("M4")
+def mcp(ctx: typer.Context) -> None:
+    """Start the read-only MCP server on stdio (for Claude Code, Claude Desktop, Cursor...).
+
+    Register it with: claude mcp add graph-me -- graph-me mcp
+    """
+    from graph_me.mcp_server import build_server
+
+    c = _ctx(ctx)
+    if not c.db_path.exists():
+        typer.secho(f"No store at {c.out}. Run `graph-me init` and `graph-me scan` first.",
+                    fg="red", err=True)  # fmt: skip
+        raise typer.Exit(1)
+    build_server(_service(c, "mcp")).run()
+
+
+@app.command()
+def report(ctx: typer.Context) -> None:
+    """Regenerate REPORT.md and graph.json in graph-out (done after every scan and sync)."""
+    from graph_me import report as report_mod
+
+    c = _ctx(ctx)
+    conn = _open_store(c)
+    try:
+        paths = report_mod.write(conn, c.out)
+    finally:
+        conn.close()
+    for path in paths:
+        typer.echo(f"wrote    {path}")

@@ -27,6 +27,7 @@ dependencies = [
     "dateparser>=1.4",
     "networkx>=3.7",
     "mcp>=2.2",
+    "mcp-types>=2.2",
 ]
 
 [project.optional-dependencies]
