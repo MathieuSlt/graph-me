@@ -3,7 +3,7 @@
 All notable changes to graph-me. Versions follow [semantic versioning](https://semver.org/);
 before 1.0, minor versions may break the config or the store.
 
-## 0.1.0 (unreleased)
+## 0.1.0 (2026-10-01)
 
 First public release.
 
