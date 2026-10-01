@@ -116,11 +116,11 @@ def test_cli_sync(tmp_path, docs, mv, monkeypatch):
     runner.invoke(app, [*base, "init"])
     result = runner.invoke(app, [*base, "sync", "--workers", "1"])
     assert result.exit_code == 0, result.output
-    assert "0 forgotten" in result.output
+    assert "forgotten" not in result.output  # nothing to forget on a first sync
 
     mark_deleted_at_source(home, "WIN A FREE CRUISE")
     result = runner.invoke(app, [*base, "sync", "--workers", "1"])
-    assert "messages: 132 seen" in result.output and "1 forgotten" in result.output
+    assert "messages: 132 items" in result.output and "1 forgotten" in result.output
 
     docs.rename(docs.with_name("unplugged"))
     result = runner.invoke(app, [*base, "sync", "--workers", "1"])

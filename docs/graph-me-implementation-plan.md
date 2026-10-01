@@ -296,9 +296,9 @@ Context pack format (JSON, also rendered as Markdown for the skill):
 | CLI command | Does |
 | --- | --- |
 | `graph-me init` | Writes config.yaml, resolves and creates graph-out |
-| `graph-me scan [--tier none\|medium\|high]` | First full build |
+| `graph-me scan` | First full build (Tier 0) |
 | `graph-me sync [source]` | Adds, updates, forgets |
-| `graph-me enrich --tier medium [--llm agent\|ollama\|api] [--source] [--since]` | Upgrade an existing graph |
+| `graph-me enrich [--llm agent\|ollama\|anthropic\|openai_compat] [--source] [--since]` | Upgrade an existing graph to Tier 1 |
 | `graph-me ingest <batch.out.json>` | Merge agent-mode results |
 | `graph-me query "..."` | Ask from the terminal |
 | `graph-me where` | Print active store and stats |

@@ -47,8 +47,8 @@ Read the relevant doc before implementing a feature. If a decision changes, upda
 ## Commands
 
 ```
-graph-me init | scan [--tier none|medium|high] | sync [source] | enrich --tier medium [--llm agent|ollama|api]
-graph-me ingest <batch.out.json> | query "..." | where | ui | mcp | install-skill
+graph-me init | where | install-skill | scan | sync [--source] | report
+graph-me query | who | fact | enrich [--llm agent|ollama|anthropic|openai_compat] | ingest | ui | mcp
 ```
 
 Implemented so far: `init`, `where`, `install-skill`, `scan` and `sync` (Tier 0: filesystem, msgvault, vcard), `query [--format text|json|markdown]`, `who`, `fact`, `mcp`, `report`, `enrich`, `ingest`, `ui`. The others exit with code 2 and name the milestone that brings them.

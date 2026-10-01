@@ -184,7 +184,7 @@ def test_cli_scan_and_query(tmp_path, docs, monkeypatch):
 
     result = runner.invoke(app, [*base, "scan", "--workers", "1"])
     assert result.exit_code == 0, result.output
-    assert "11 added" in result.output
+    assert "docs: 11 items, 11 new" in result.output
 
     result = runner.invoke(app, [*base, "query", "bail", "--json"])
     assert result.exit_code == 0, result.output

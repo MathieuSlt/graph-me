@@ -389,9 +389,9 @@ def test_cli_enrich_agent_flow(tmp_path, docs, mv, monkeypatch):
     assert not (out / "work").exists()
 
     result = runner.invoke(app, [*base, "enrich"])
-    assert result.exit_code == 0 and "2 batch files written" in result.output
-    assert "embeddings:" in result.output
-    assert "waiting for answer" in runner.invoke(app, [*base, "enrich", "--status"]).output
+    assert result.exit_code == 0 and "Wrote 2 batch files" in result.output
+    assert "embedded" in result.output
+    assert "waiting for an answer" in runner.invoke(app, [*base, "enrich", "--status"]).output
 
     model = ScriptedLLM()
     for batch_path in sorted((out / "work").glob("batch-*.json")):

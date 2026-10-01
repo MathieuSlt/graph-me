@@ -83,12 +83,12 @@ class PeopleConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     # Country calling code for national phone numbers ("07700 900123" -> +447700900123),
-    # so a contact's number matches the same person on WhatsApp. Example: "33".
+    # so a contact's number matches the same person on WhatsApp. Example: "44".
     phone_country_code: str | None = None
     # Your own emails and phone numbers, when a source can't tell which messages are yours.
     me: list[str] = Field(default_factory=list)
     # Time zone used to tell which day a message was sent (birthday wishes just after
-    # midnight). IANA name such as "Europe/Paris". Default: this computer's time zone.
+    # midnight). IANA name such as "America/New_York". Default: this computer's time zone.
     timezone: str | None = None
 
     @field_validator("timezone")
@@ -98,7 +98,7 @@ class PeopleConfig(BaseModel):
             try:
                 ZoneInfo(value)
             except (ZoneInfoNotFoundError, ValueError) as exc:
-                raise ValueError(f"unknown time zone {value!r} (example: Europe/Paris)") from exc
+                raise ValueError(f"unknown time zone {value!r}, e.g. America/New_York") from exc
         return value
 
 
