@@ -51,7 +51,7 @@ def all_injection_phrases() -> tuple[str, ...]:
 
 
 def relation_words() -> dict[str, str]:
-    """Folded relation word -> relation label, across all packs ("soeur" -> "sibling")."""
+    """Folded relation word -> relation label, across all packs ("sister" -> "sibling")."""
     from graph_me.pipeline.sanitize import fold
 
     return {

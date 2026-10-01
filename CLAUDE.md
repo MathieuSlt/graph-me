@@ -4,7 +4,8 @@
 
 **graph-me** (working name): an open-source (MIT) Python tool that builds a local knowledge graph of a person's own data (files, mail, WhatsApp) so an AI agent can query it. Think graphify, but for personal data. You invoke it from an agent with "use graph-me".
 
-Status: M0, M1 (Tier 0 on files), M2 (msgvault, vCard, people, birthday facts) M3 (sync and forget), M4 (MCP server, skill, REPORT.md) and M5 (Tier 1: labels + embeddings, no NER yet) are done. M6 is in progress: web UI and benchmark script done, release (v0.1.0 on PyPI) next. Development plan: milestones M0–M6 in `docs/graph-me-implementation-plan.md`.
+Status: M0, M1 (Tier 0 on files), M2 (msgvault, vCard, people, birthday facts) M3 (sync and forget), M4 (MCP server, skill, REPORT.md) and M5 (Tier 1: labels + embeddings, no NER yet) are done. M6 is in progress: web UI and benchmark script done; 0.1.0 is prepared (`CHANGELOG.md`, `.github/workflows/release.yml`: push a `v*` tag to publish to PyPI by trusted publishing).
+- **Open source, English only**: docs, CLI, UI, examples and placeholders are in English and never refer to the maintainer's own data. French appears only in the French rule pack and the synthetic test fixtures that exercise it. Development plan: milestones M0–M6 in `docs/graph-me-implementation-plan.md`.
 
 ## Source of truth
 

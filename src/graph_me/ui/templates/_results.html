@@ -1,6 +1,6 @@
 {% from "_macros.html" import date, trust, flagged, entity_link, facts_table %}
 {% if result is none %}
-  <p class="muted">Search your files, mails, chats and contacts. Tier 0 matches words, not meaning: try French and English, a name, or a date range.</p>
+  <p class="muted">Search your files, mails, chats and contacts. Tier 0 matches words, not meaning: try synonyms, another language, a name, or a date range.</p>
 {% else %}
   <title>{{ q }} · graph-me</title>
   {% for person in result.facts %}
@@ -10,7 +10,7 @@
   </article>
   {% endfor %}
   {% if not result.answer_items and not result.facts %}
-    <p>Nothing found for <strong>{{ q }}</strong>. Try other words (French and English), a person's name, or no filters.</p>
+    <p>Nothing found for <strong>{{ q }}</strong>. Try other words, another language, a person's name, or no filters.</p>
   {% endif %}
   {% for it in result.answer_items %}
   <article class="card">

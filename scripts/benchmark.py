@@ -27,8 +27,8 @@ from graph_me.service import Service
 from graph_me.store import db
 
 QUERIES = [
-    "bail", "lease", "facture", "invoice", "anniversaire", "birthday", "contrat", "rendez-vous",
-    "meeting", "passeport", "assurance", "banque", "billet", "train", "devis", "médecin",
+    "lease", "invoice", "birthday", "contract", "meeting", "appointment", "passport", "insurance",
+    "bank", "ticket", "train", "quote", "doctor", "receipt", "salary", "tax",
 ]  # fmt: skip
 TARGET_SCAN_S_PER_GB = 15 * 60 / 2
 TARGET_QUERY_MS = 300

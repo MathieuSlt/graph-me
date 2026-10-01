@@ -1,6 +1,6 @@
 # graph-me — Discovery
 
-Sep 30, 2026 · @Mathieu
+Sep 30, 2026
 
 ## Vision
 
@@ -47,7 +47,7 @@ The graph is built mainly for the agent. Exploring it yourself in the web UI is 
 Where graph-me can win:
 
 - **Reuse, don't rewrite**: wrap msgvault and future archivers as connectors, and let the community add more through YAML config and plugins.
-- **Cross-source entity resolution**: "Maman" in WhatsApp, maman@gmail.com and a contact card become one person.
+- **Cross-source entity resolution**: "Mom" in WhatsApp, mom@example.com and a contact card become one person.
 - **Free by default**: Tier 0 works with zero models and zero tokens.
 - **graphify-style UX**: one command, a report, a skill, an MCP server.
 
@@ -89,7 +89,7 @@ Out of scope for now: images and OCR, screen capture, audio capture.
 | Search | Full-text (SQLite FTS5, BM25) | + semantic search | + summaries per document and thread |
 | Entities | Deterministic: mail headers, phone numbers, contact cards, dates, URLs, folders | + named-entity recognition in text | + full entity and relation extraction |
 | Relations | Co-occurrence: same thread, same folder, sender to recipient, attachment to file on disk by hash | + labels for filenames, folders and clusters | + typed relations: sister_of, landlord_of, works_at |
-| Facts | Multilingual rules: a "joyeux anniversaire" message on 12/03 suggests a birthday | + rules over NER output | + LLM fact extraction with confidence |
+| Facts | Multilingual rules: a "happy birthday" message on 03/12 suggests a birthday | + rules over NER output | + LLM fact extraction with confidence |
 | Graph | Communities, central nodes, REPORT.md | + named communities | + a profile per important person or project |
 
 Tier 0 is marked "not recommended" in the docs: it works, but results are less convincing without AI. It stays the default so the first run is instant, free and works for everyone.
@@ -174,7 +174,7 @@ sources:
   messages:
     type: msgvault
     db: ~/.msgvault
-    accounts: [perso@gmail.com, whatsapp]
+    accounts: [you@example.com, whatsapp]
 
 blacklist:
   paths: [~/Documents/medical]

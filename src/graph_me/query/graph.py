@@ -41,7 +41,7 @@ def find_people(
             scores[eid] = scores.get(eid, 0) + 10
     words = set(_WORD.findall(fold(text)))
     relations = {rel for word, rel in rules.relation_words().items() if word in words}
-    if relations:  # "ma soeur", "my landlord": people Tier 1 labelled with that relation
+    if relations:  # "my sister", "my landlord": people Tier 1 labelled with that relation
         marks = ",".join("?" * len(relations))
         for (eid,) in conn.execute(
             f"SELECT entity_id FROM facts WHERE key = 'relation_to_user' AND value IN ({marks})",
@@ -292,7 +292,7 @@ def _people_of(conn: sqlite3.Connection, item_id: str) -> dict:
 def facts_for_query(
     conn: sqlite3.Connection, text: str, people_cfg: PeopleConfig | None = None, limit: int = 3
 ) -> list[dict]:
-    """Facts about the people a query names ("anniversaire Sophie" -> Sophie's facts)."""
+    """Facts about the people a query names ("Sophie birthday" -> Sophie's facts)."""
     out = []
     for eid in find_people(conn, text, people_cfg, limit):
         found = facts_of(conn, eid)

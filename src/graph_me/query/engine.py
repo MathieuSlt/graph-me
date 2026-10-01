@@ -13,7 +13,7 @@ _TOKEN = re.compile(r"\w+")
 _CANDIDATES = 200
 TITLE_WEIGHT = 2.0  # a match in the file name counts double
 RRF_K = 60  # reciprocal rank fusion constant
-PREFIX_MIN_LEN = 4  # "bail" also matches "bails"; shorter words match exactly
+PREFIX_MIN_LEN = 4  # "lease" also matches "leases"; shorter words match exactly
 
 
 @dataclass

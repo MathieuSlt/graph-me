@@ -1,6 +1,6 @@
 [project]
 name = "graph-me"
-version = "0.0.1"
+version = "0.1.0"
 description = "A local knowledge graph of your personal data (files, mail, WhatsApp) for AI agents"
 readme = "README.md"
 license = "MIT"
@@ -9,6 +9,10 @@ requires-python = ">=3.12"
 authors = [{ name = "Mathieu Salliot" }]
 keywords = ["knowledge-graph", "personal-data", "mcp", "claude-code", "local-first"]
 classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: End Users/Desktop",
+    "Topic :: Utilities",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
@@ -29,6 +33,11 @@ dependencies = [
     "mcp>=2.2",
     "mcp-types>=2.2",
 ]
+
+[project.urls]
+Homepage = "https://github.com/MathieuSlt/graph-me"
+Issues = "https://github.com/MathieuSlt/graph-me/issues"
+Changelog = "https://github.com/MathieuSlt/graph-me/blob/main/CHANGELOG.md"
 
 [project.optional-dependencies]
 medium = ["sqlite-vec==0.1.9", "fastembed>=0.8", "httpx>=0.28", "anthropic>=1.9"]

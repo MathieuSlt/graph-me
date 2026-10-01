@@ -44,7 +44,7 @@ class Sanitized:
 
 
 def fold(text: str) -> str:
-    """Casefold and strip accents: 'Précédentes' -> 'precedentes'."""
+    """Casefold and strip accents: 'Café Déjà' -> 'cafe deja'."""
     decomposed = unicodedata.normalize("NFKD", text.casefold())
     return "".join(ch for ch in decomposed if not unicodedata.combining(ch))
 

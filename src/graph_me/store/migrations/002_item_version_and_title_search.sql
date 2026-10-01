@@ -3,7 +3,7 @@
 -- Opaque per-source version (for files: "<mtime_ns>:<size>"). Unchanged version = skip.
 ALTER TABLE items ADD COLUMN version TEXT;
 
--- Search over titles and paths, so "bail" finds bail_2025.pdf even before reading it.
+-- Search over titles and paths, so "lease" finds lease_2025.pdf even before reading it.
 CREATE VIRTUAL TABLE items_fts USING fts5(
   title, uri, content='items', content_rowid='rowid', tokenize='unicode61 remove_diacritics 2'
 );

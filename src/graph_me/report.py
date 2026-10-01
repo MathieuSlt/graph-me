@@ -135,7 +135,7 @@ def build_report(conn: sqlite3.Connection, today: date | None = None) -> str:
         "# graph-me report",
         "",
         f"Generated {today.isoformat()}. Tier 0: no AI, so answers match words, not meaning. "
-        "`graph-me enrich` (M5) will improve them.",
+        "`graph-me enrich` improves them.",
         "",
         "## Sources",
         "",
@@ -174,7 +174,7 @@ def build_report(conn: sqlite3.Connection, today: date | None = None) -> str:
         questions.append(f"What did {people[0]['name']} send me last?")
     if folders:
         questions.append(f"Which documents are in {folders[0]['name']}?")
-    questions.append("Where is my lease (contrat de bail)?")
+    questions.append("Where is my lease?")
     lines += ["", "## Try asking your agent", ""]
     lines += [f'- "use graph-me: {q}"' for q in questions]
     return "\n".join(lines) + "\n"

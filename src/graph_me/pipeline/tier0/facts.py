@@ -2,7 +2,7 @@
 
 - Contact cards: birthday (and birth year), nicknames, organization. Confidence 0.95.
 - Birthday greetings: a message to exactly one person whose opening words contain a greeting
-  from a rule pack ("joyeux anniv", "happy birthday"...) suggests that person's birthday on the
+  from a rule pack ("happy birthday", "happy bday"...) suggests that person's birthday on the
   message's local date (``people.timezone``). Confidence 0.5, rising by 0.15 for each extra
   year the same date is seen (max 0.9). Messages with an "exclude" word ("en retard",
   "belated") are ignored.

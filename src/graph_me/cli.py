@@ -166,7 +166,13 @@ def scan(
     Adds new items and updates changed ones. Use `sync` to also forget deleted ones.
     """
     if tier != "none":
-        _not_yet("M5 (Tier 1) / after v1 (Tier 2)")
+        typer.secho(
+            "scan builds Tier 0 only. Run `graph-me enrich` afterwards for Tier 1"
+            " (Tier 2 comes after v1).",
+            fg=typer.colors.YELLOW,
+            err=True,
+        )
+        raise typer.Exit(2)
     _run_pipeline(ctx, source=source, workers=workers, forget=False)
 
 

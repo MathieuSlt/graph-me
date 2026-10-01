@@ -3,7 +3,7 @@
 - ``local`` (default): sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2 through
   fastembed (ONNX, no PyTorch). It runs on this computer; the model (~220 MB) is downloaded once
   on first use into ~/.cache/graph-me/models (GRAPH_ME_MODELS_DIR). French and English
-  share one vector space: "rental contract" is close to "contrat de bail".
+  share one vector space: "rental contract" is close to its French translation.
 - any other fastembed model name.
 - ``hash``: a deterministic toy embedder for tests only (no meaning, no download).
 
@@ -26,8 +26,8 @@ from typing import Protocol
 LOCAL_MODEL = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
 BATCH = 64
 # Vectors are normalized, so L2 distance d relates to cosine similarity: cos = 1 - d**2 / 2.
-# Short cross-language phrases score low but clearly above noise ("contrat de bail" vs
-# "rental agreement": 0.34; vs "recette de crêpes": 0.03), hence cos >= 0.25.
+# Short cross-language phrases score low but clearly above noise (a French lease title vs
+# "rental agreement": 0.34; vs an unrelated recipe title: 0.03), hence cos >= 0.25.
 MAX_DISTANCE = 1.22
 MODELS_DIR = Path(os.environ.get("GRAPH_ME_MODELS_DIR", "~/.cache/graph-me/models")).expanduser()
 

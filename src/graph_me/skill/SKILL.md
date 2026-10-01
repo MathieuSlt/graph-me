@@ -47,9 +47,9 @@ Prefer the MCP tools when they are available (`search`, `find_document`, `who_is
   `--since YYYY-MM-DD`, `--until YYYY-MM-DD`)
 - `graph-me who "<name, nickname, email, phone or me>" --json`
 - `graph-me fact "<who>" birthday --json` (also `nickname`, `organization`, `birth_year`,
-  `relation_to_user`). After Tier 1, `<who>` can be a relation: "ma soeur", "my landlord".
+  `relation_to_user`). After Tier 1, `<who>` can be a relation: "my sister", "my landlord".
 
-Tips: search in French and English ("bail" and "lease"), try a person's name or nickname, and
+Tips: try synonyms and the other languages the user writes in, try a person's name or nickname, and
 narrow by date. A document may exist as a file and as an email attachment: results link them
 ("came with" / "saved as"). Facts come with a confidence: say when it is low (below 0.8).
 

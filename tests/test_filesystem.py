@@ -58,12 +58,12 @@ def test_build_output_of_code_projects_is_noise(docs):
     put("Maison/build/plans.md", "plans de la maison")  # no project file: a personal folder
     put("site/package-lock.json", "{}")
     put("site/vendor/lib.min.js")
-    put("blink/graphify-out/graph.json", "{}")
+    put("app/graphify-out/graph.json", "{}")
     files = listed(connector(docs))
     assert "site/src/app.ts" in files and "Maison/build/plans.md" in files
     for skipped in ("site/dist/assets/index.js", "tool/target/debug/notes.md",
                     "site/package-lock.json", "site/vendor/lib.min.js",
-                    "blink/graphify-out/graph.json"):  # fmt: skip
+                    "app/graphify-out/graph.json"):  # fmt: skip
         assert skipped not in files, skipped
         assert connector(docs).excluded(str(docs / skipped)), skipped
     # a custom exclude list replaces every default, this rule included

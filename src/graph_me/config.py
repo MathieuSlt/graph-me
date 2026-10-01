@@ -82,7 +82,7 @@ class BlacklistConfig(BaseModel):
 class PeopleConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    # Country calling code for national phone numbers ("06 12 34 56 78" -> +33612345678),
+    # Country calling code for national phone numbers ("07700 900123" -> +447700900123),
     # so a contact's number matches the same person on WhatsApp. Example: "33".
     phone_country_code: str | None = None
     # Your own emails and phone numbers, when a source can't tell which messages are yours.
