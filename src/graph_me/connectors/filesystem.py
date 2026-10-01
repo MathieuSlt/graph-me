@@ -4,7 +4,12 @@ Config keys (under ``sources.<name>``):
 
 - ``paths``: folders (or single files) to index
 - ``exclude``: glob patterns for noise; ``**`` crosses folders. Defaults to DEFAULT_EXCLUDE
-  when omitted. Nothing personal is excluded by default: use the blacklist for that.
+  when omitted; a list replaces the defaults. Nothing personal is excluded by default: use the
+  blacklist for that.
+
+A folder holding an ``IGNORE_MARKER`` file is skipped with everything under it, unless it is
+one of the configured paths. Tools put it on folders of generated data (graph-me's own test
+fixtures) so they never pass for the user's documents.
 - ``trust``: ``self`` (default: your own files) or ``untrusted`` (e.g. a Downloads folder).
 """
 
@@ -23,15 +28,33 @@ from graph_me.connectors.base import Item, SourceUnavailable
 from graph_me.pipeline.parse import is_supported
 
 DEFAULT_EXCLUDE = (
+    # version control, dependencies, virtualenvs
     "**/.git/**",
     "**/node_modules/**",
     "**/.venv/**",
     "**/venv/**",
+    # build output and tool caches
     "**/__pycache__/**",
     "**/.cache/**",
+    "**/.next/**",
+    "**/.nuxt/**",
+    "**/.svelte-kit/**",
+    "**/.turbo/**",
+    "**/.parcel-cache/**",
+    "**/.expo/**",
+    "**/.gradle/**",
+    "**/.pytest_cache/**",
+    "**/.mypy_cache/**",
+    "**/.ruff_cache/**",
+    "**/.hypothesis/**",
+    "**/.tox/**",
+    "**/.nox/**",
+    "**/.terraform/**",
     "**/.Trash/**",
     "**/graph-out/**",
 )
+
+IGNORE_MARKER = ".graph-me-ignore"
 
 
 @cache
@@ -114,7 +137,12 @@ class FilesystemConnector:
         # followlinks=False: no symlink loops, no escaping the configured folders
         for dirpath, dirnames, filenames in os.walk(root, followlinks=False):
             here = Path(dirpath)
-            dirnames[:] = sorted(d for d in dirnames if not self._excluded(here / d, is_dir=True))
+            dirnames[:] = sorted(
+                d
+                for d in dirnames
+                if not self._excluded(here / d, is_dir=True)
+                and not (here / d / IGNORE_MARKER).exists()
+            )
             for name in sorted(filenames):
                 path = here / name
                 if not path.is_symlink():

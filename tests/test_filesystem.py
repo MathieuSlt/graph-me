@@ -3,7 +3,7 @@ import os
 import pytest
 
 from graph_me.config import BlacklistConfig, SourceConfig
-from graph_me.connectors.filesystem import FilesystemConnector, glob_to_regex
+from graph_me.connectors.filesystem import IGNORE_MARKER, FilesystemConnector, glob_to_regex
 
 
 def connector(docs, blocked=(), **extra):
@@ -35,6 +35,24 @@ def test_custom_exclude_replaces_defaults(docs):
     files = listed(connector(docs, exclude=["**/notes/**"]))
     assert not any(f.startswith("notes/") for f in files)
     assert "node_modules/leftpad/index.js" in files
+
+
+def test_build_output_is_noise(docs):
+    for rel in (".next/server/chunk.js", "app/.next/dev/page.js", "lib/.mypy_cache/x.json"):
+        (docs / rel).parent.mkdir(parents=True, exist_ok=True)
+        (docs / rel).write_text("const BAILOUT_TO_CSR = 1\n")
+    files = listed(connector(docs))
+    assert not any(".next/" in f or ".mypy_cache/" in f for f in files)
+
+
+def test_marked_folder_is_skipped_unless_configured(docs):
+    fixtures = docs / "graph-me" / "tests" / "fixtures"
+    fixtures.mkdir(parents=True)
+    (fixtures / "Contrat_bail_2025.txt").write_text("fake lease")
+    (fixtures / IGNORE_MARKER).write_text("")
+    assert not any(f.startswith("graph-me/") for f in listed(connector(docs)))
+    # pointed at directly, the marked folder is indexed (the test suite scans its fixtures)
+    assert "Contrat_bail_2025.txt" in listed(connector(fixtures))
 
 
 def test_symlinks_are_not_followed(docs, tmp_path):
