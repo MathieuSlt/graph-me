@@ -170,7 +170,7 @@ sources:
   docs:
     type: filesystem
     paths: [~/Documents, ~/Desktop]
-    exclude: ["**/node_modules", "**/.git"]
+    # exclude: ["**/node_modules/**"]  # optional, replaces the default noise globs
   messages:
     type: msgvault
     db: ~/.msgvault
@@ -182,7 +182,7 @@ blacklist:
   patterns: []
 ```
 
-Nothing is excluded by default. The blacklist is the user's choice. Default `exclude` patterns only remove noise (build folders, caches), not private data.
+Nothing is excluded by default. The blacklist is the user's choice. Default `exclude` patterns only remove noise (build folders, caches), not private data. A folder holding a `.graph-me-ignore` file is skipped too, unless it is a configured path: graph-me's own generated test fixtures carry one so a scan of a clone never mistakes them for the user's documents.
 
 ## Storage, sync and forgetting
 
@@ -201,7 +201,7 @@ Contents of `graph-out/`: `graph.db` (SQLite), `graph.json`, `REPORT.md`, a `wor
 
 Sync is manual: `graph-me sync` (all sources) or `graph-me sync --source messages` (one source). It adds new items, updates changed ones and forgets deleted ones, including every item of a source removed from `config.yaml`. `graph-me scan` only adds and updates.
 
-Safety nets: an unreachable source (missing folder, unplugged drive, missing msgvault database) is skipped, never wiped, and a sync that would forget more than half of a source (above 50 items) stops unless run with `--allow-mass-forget`.
+Safety nets: an unreachable source (missing folder, unplugged drive, missing msgvault database) is skipped, never wiped, and a sync that would forget more than half of a source (above 50 items) stops unless run with `--allow-mass-forget`. Files still on disk that the config now leaves out (noise globs, `.graph-me-ignore`) do not count toward that limit.
 
 Forgetting follows msgvault exactly (decision A): a message msgvault marks as deleted (locally, or at the source when its Gmail sync sees a deletion), purges with `gc`, or drops with `remove-account` disappears from graph-me on the next sync. For each deleted item:
 
@@ -261,7 +261,7 @@ Open questions:
 
 - [ ] Which queries are MCP tools and which are skill instructions?
 - [ ] Auto-merge threshold for duplicate people, and when to ask the user?
-- [ ] Exact default noise excludes for the filesystem connector
+- [x] Exact default noise excludes for the filesystem connector (`DEFAULT_EXCLUDE` in `connectors/filesystem.py`)
 - [ ] Contribution guide for connectors and language packs
 - [ ] Does msgvault expose deletions in a way graph-me can detect cheaply?
 
@@ -290,6 +290,9 @@ Open questions:
 | Messaging source | msgvault recommended, not required: graph-me reads its database read-only and builds its own people and facts from any connector's messages (decided 2026-09-30) |
 | Contacts | From msgvault (raw CardDAV entries) or `.vcf` files (`vcard` connector) |
 | People | Same person only when an email or phone is shared; never by name alone |
+| Noise excludes | Version control, dependencies, virtualenvs, and dot-folders of build output and tool caches (`.next`, `.mypy_cache`, ...); not `dist/` or `build/`, which can be personal folder names. A source's `exclude` replaces the defaults, so the `init` template leaves it commented out (decided 2026-10-01) |
+| Ignore marker | A `.graph-me-ignore` file skips its folder unless that folder is a configured path; `make_fixtures.py` puts one on the generated fixtures (decided 2026-10-01) |
+| Mass-forget guard | Counts only items gone from the source; files a config change now skips are forgotten without `--allow-mass-forget` (decided 2026-10-01) |
 | msgvault Gmail scope | msgvault asks for `gmail.modify` (its deletion flow); documented, graph-me stays read-only |
 
 Name alternatives checked on PyPI (free as of 2026-09-30): kithgraph, lifeweave, selfgraph, personagraph, lore-graph, ownsight, kinloom. Taken: lifegraph (so life-graph too), clawgraph (so claw-graph too).

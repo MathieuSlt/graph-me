@@ -84,3 +84,7 @@ class Connector(Protocol):
     def fetch(self, external_ids: Iterable[str]) -> Iterator[Item]:
         """Yield full items for the given ids. Ids that vanished meanwhile are skipped."""
         ...
+
+    # Optional: ``excluded(external_id) -> bool`` says an id missing from ``list_ids`` still
+    # exists but the config now leaves it out (noise globs, ignore marker). Sync forgets it
+    # without counting it toward the mass-forget guard, which is about sources that went away.

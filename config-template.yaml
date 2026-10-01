@@ -40,7 +40,7 @@ sources:
   docs:
     type: filesystem
     paths: [~/Documents, ~/Desktop]
-    exclude: ["**/node_modules/**", "**/.git/**", "**/.venv/**", "**/__pycache__/**"]
+    # exclude: ["**/node_modules/**"]  # replaces the default noise globs (build folders, caches)
     trust: self      # self (your own files) | untrusted (content from others)
   # downloads:
   #   type: filesystem

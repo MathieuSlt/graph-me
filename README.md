@@ -81,7 +81,8 @@ still says it. Sync is manual: run it when you want.
 
 Two safety nets protect the index. A source that can't be reached (unplugged drive, missing
 folder, missing msgvault database) is skipped, never wiped. And a sync that would forget more
-than half of a source (above 50 items) stops and asks for `--allow-mass-forget`.
+than half of a source (above 50 items) stops and asks for `--allow-mass-forget`. Files that
+are still on disk but now skipped by your config (build folders, caches) don't count.
 
 ### Mail, chats and contacts
 
