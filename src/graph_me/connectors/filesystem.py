@@ -113,6 +113,21 @@ class FilesystemConnector:
             return True
         return any(path == b or path.is_relative_to(b) for b in self.blocked)
 
+    def excluded(self, external_id: str) -> bool:
+        """The file is still on disk, under a configured path, but the walk now skips it."""
+        path = Path(external_id)
+        root = next((r for r in self.roots if path == r or path.is_relative_to(r)), None)
+        if root is None or not path.is_file():
+            return False
+        if path.is_symlink() or not is_supported(path) or self._excluded(path):
+            return True
+        for folder in path.parents:
+            if folder == root or not folder.is_relative_to(root):
+                break
+            if self._excluded(folder, is_dir=True) or (folder / IGNORE_MARKER).exists():
+                return True
+        return False
+
     def _walk(self) -> Iterator[Path]:
         missing = [str(r) for r in self.roots if not r.exists()]
         if missing:

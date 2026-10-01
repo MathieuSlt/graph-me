@@ -323,10 +323,13 @@ def _scan_source(
 
     if forget_missing:
         missing = [eid for eid in known if eid not in listed]
-        if missing and _too_many(len(missing), len(known)) and not allow_mass_forget:
+        # Items the config now leaves out still exist: forgetting them is no sign of a lost source.
+        excluded = getattr(connector, "excluded", None)
+        gone = [eid for eid in missing if not excluded(eid)] if excluded else missing
+        if gone and _too_many(len(gone), len(known)) and not allow_mass_forget:
             return SourceStats(
                 seen=stats.seen,
-                failure=_guard_message(f"source {source!r}", len(missing), len(known)),
+                failure=_guard_message(f"source {source!r}", len(gone), len(known)),
             )
         stats.forgotten = forget.forget_items(conn, (item_id(source, eid) for eid in missing))
         conn.commit()

@@ -55,6 +55,24 @@ def test_marked_folder_is_skipped_unless_configured(docs):
     assert "Contrat_bail_2025.txt" in listed(connector(fixtures))
 
 
+def test_excluded_tells_skipped_files_from_gone_ones(docs, tmp_path):
+    marked = docs / "fixtures"
+    marked.mkdir()
+    (marked / IGNORE_MARKER).write_text("")
+    (marked / "fake.txt").write_text("fake")
+    (docs / ".next").mkdir()
+    (docs / ".next" / "chunk.js").write_text("x")
+    c = connector(docs)
+    assert c.excluded(str(marked / "fake.txt"))
+    assert c.excluded(str(docs / ".next" / "chunk.js"))
+    assert c.excluded(str(docs / "photos/vacances.jpg"))  # unsupported type
+    assert not c.excluded(str(docs / "Logement/Contrat_bail_2025.pdf"))  # still listed
+    assert not c.excluded(str(docs / "deleted.txt"))  # gone from disk
+    outside = tmp_path / "elsewhere.txt"
+    outside.write_text("x")
+    assert not c.excluded(str(outside))  # not under a configured path
+
+
 def test_symlinks_are_not_followed(docs, tmp_path):
     outside = tmp_path / "outside"
     outside.mkdir()

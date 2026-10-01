@@ -222,6 +222,29 @@ def test_missing_folder_is_reported_not_forgotten(conn, docs):
     assert conn.execute("SELECT count(*) FROM items").fetchone()[0] == 11
 
 
+def test_newly_excluded_files_need_no_permission(conn, docs):
+    for n in range(80):
+        (docs / ".next" / f"chunk{n}.js").parent.mkdir(exist_ok=True)
+        (docs / ".next" / f"chunk{n}.js").write_text(f"const BAILOUT_{n} = 1\n")
+    run.sync(conn, docs_config(docs, exclude=[]), workers=1)  # nothing excluded: 80 chunks in
+
+    # the defaults now skip .next: forgetting the chunks is a config change, not a lost source
+    report = run.sync(conn, docs_config(docs), workers=1)
+    assert report.ok and report.sources["docs"].forgotten == 81  # and node_modules/leftpad
+    assert engine.search(conn, "BAILOUT_1") == []
+    assert_consistent(conn)
+
+
+def test_deleted_files_still_need_permission(conn, docs):
+    for n in range(80):
+        (docs / f"note{n}.txt").write_text(f"note {n}\n")
+    cfg = docs_config(docs)
+    run.sync(conn, cfg, workers=1)
+    for n in range(80):
+        (docs / f"note{n}.txt").unlink()
+    assert "would forget 80 of 91" in run.sync(conn, cfg, workers=1).sources["docs"].failure
+
+
 # --- property test ------------------------------------------------------------------------------
 
 operation = st.tuples(

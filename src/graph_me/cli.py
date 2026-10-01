@@ -209,7 +209,7 @@ def _run_pipeline(
         raise typer.Exit(1)
     conn = _open_store(c)
     typer.secho(
-        "Tier 0: no AI. Results are less convincing; `graph-me enrich` improves them (M5).",
+        "Tier 0: no AI. Results are less convincing; `graph-me enrich` improves them.",
         fg=typer.colors.YELLOW,
         err=True,
     )
