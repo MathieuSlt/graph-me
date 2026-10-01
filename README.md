@@ -2,9 +2,9 @@
 
 A local knowledge graph of your personal data (files, mail, WhatsApp) that your AI agent can query. Think [graphify](https://github.com/Graphify-Labs/graphify), for your own life.
 
-> Status: early development (milestone M5). Search over files, mail, chats and contacts, people
-> and birthdays, `sync`, use from Claude Code (skill + MCP server), and Tier 1 AI enrichment.
-> The web UI and the first release come next.
+> Status: early development (milestone M6). Search over files, mail, chats and contacts, people
+> and birthdays, `sync`, use from Claude Code (skill + MCP server), Tier 1 AI enrichment and a
+> local web UI. The first release comes next.
 > See `docs/` for the design.
 
 ## Install
@@ -71,6 +71,25 @@ After every scan and sync, `graph-out/REPORT.md` summarizes what was indexed, th
 deal with most, upcoming birthdays, communities and questions worth asking; `graph.json` holds
 the graph for other tools.
 
+### Web UI
+
+```bash
+uv tool install --managed-python "graph-me[ui]"
+graph-me ui                  # opens http://127.0.0.1:<port>/?token=...
+```
+
+Four pages: **Search** (files, mails, chats and contacts, with filters by kind, source and date),
+**Graph** (people, projects and documents; coloured by kind or group; click a node to see its
+neighbours, double-click to open it), **entity pages** (identifiers, facts with their confidence,
+relations, latest items) and **Status** (sources, last runs, blacklist, flagged items). Every fact
+has a "Why do I know this?" link to the messages and files it came from.
+
+The UI is read-only and runs on your machine only (127.0.0.1). The URL carries a random token,
+new at each start: anyone with it can read your graph while `graph-me ui` runs. Message HTML is
+never rendered, only its text, and redacted secrets stay redacted (`graph-me query --reveal` in
+a terminal is the only way to see them). The front-end libraries are bundled, so it works
+offline.
+
 ### Keeping up to date, and forgetting
 
 `graph-me sync` mirrors your sources. A file you delete, a message deleted in msgvault (for
@@ -118,7 +137,11 @@ uv sync --all-extras
 uv run pytest
 uv run ruff check
 uv run graph-me where      # inside the clone, data goes to ./graph-out
+uv run python scripts/benchmark.py --config ~/graph-me/config.yaml   # scan time, DB size, query latency
 ```
+
+The benchmark scans into a throwaway folder and prints numbers only (no names, paths or text),
+so its table is safe to share.
 
 ## License
 

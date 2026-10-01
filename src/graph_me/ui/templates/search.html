@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}{{ q ~ " · " if q }}graph-me{% endblock %}
+{% block main %}
+<form class="search" action="/" method="get" hx-get="/search" hx-target="#results" hx-push-url="true" hx-indicator="#busy">
+  <input id="q" name="q" type="search" value="{{ q }}" placeholder="lease, electricity bill, Sophie birthday…" autofocus autocomplete="off" aria-label="Search">
+  <select name="kind" aria-label="Kind">
+    <option value="">all kinds</option>
+    {% for k in kinds %}<option value="{{ k }}" {% if k == kind %}selected{% endif %}>{{ k }}</option>{% endfor %}
+  </select>
+  <select name="source" aria-label="Source">
+    <option value="">all sources</option>
+    {% for s in sources %}<option value="{{ s }}" {% if s == source %}selected{% endif %}>{{ s }}</option>{% endfor %}
+  </select>
+  <label class="small">from <input name="since" type="date" value="{{ since or '' }}"></label>
+  <label class="small">to <input name="until" type="date" value="{{ until or '' }}"></label>
+  <button type="submit">Search</button>
+  <span id="busy" class="htmx-indicator muted small">searching…</span>
+</form>
+<section id="results">{% include "_results.html" %}</section>
+{% endblock %}

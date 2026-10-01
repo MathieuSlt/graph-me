@@ -543,9 +543,53 @@ def fact(
 
 
 @app.command()
-def ui() -> None:
-    """Start the local, read-only web UI."""
-    _not_yet("M6")
+def ui(
+    ctx: typer.Context,
+    port: Annotated[int, typer.Option(help="Port on 127.0.0.1 (0 picks a free one).")] = 0,
+    open_browser: Annotated[
+        bool, typer.Option("--open/--no-open", help="Open the page in your browser.")
+    ] = True,
+) -> None:
+    """Start the local, read-only web UI on 127.0.0.1 (search, graph, people, provenance)."""
+    try:
+        import uvicorn
+
+        from graph_me.ui.app import build_app, new_token
+    except ImportError:
+        typer.secho(
+            'The web UI needs the [ui] extra: uv tool install --managed-python "graph-me[ui]"',
+            fg="red",
+            err=True,
+        )
+        raise typer.Exit(1) from None
+    import socket
+    import webbrowser
+
+    c = _ctx(ctx)
+    if not c.db_path.exists():
+        typer.secho(f"No store at {c.out}. Run `graph-me init` and `graph-me scan` first.",
+                    fg="red", err=True)  # fmt: skip
+        raise typer.Exit(1)
+    token = new_token()
+    # Bind first so the printed URL has the real port, then hand the socket to uvicorn.
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    try:
+        sock.bind(("127.0.0.1", port))
+    except OSError as exc:
+        typer.secho(f"Cannot listen on 127.0.0.1:{port}: {exc.strerror}", fg="red", err=True)
+        raise typer.Exit(1) from None
+    url = f"http://127.0.0.1:{sock.getsockname()[1]}/?token={token}"
+    typer.echo(f"graph-me UI (read-only, this machine only): {url}")
+    typer.echo("Anyone with this URL can read your graph while it runs. Ctrl+C to stop.")
+    if open_browser:
+        webbrowser.open(url)
+    server = uvicorn.Server(
+        uvicorn.Config(
+            build_app(_service(c, "ui"), token), log_level="warning", access_log=False
+        )  # fmt: skip
+    )
+    server.run(sockets=[sock])
 
 
 @app.command()

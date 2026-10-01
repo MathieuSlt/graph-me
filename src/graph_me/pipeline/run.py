@@ -18,7 +18,7 @@ import re
 import sqlite3
 from collections.abc import Callable, Iterator
 from concurrent.futures import ProcessPoolExecutor
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -255,9 +255,29 @@ def _run(
             conn.commit()
     finally:
         workers_.close()
+    _save_last_run(conn, report, "sync" if forget_missing else "scan")
     # Re-processed, forgotten or blacklisted items may have left entities, facts or relations.
     finish(conn)
+    db.compact(conn)
     return report
+
+
+def _save_last_run(conn: sqlite3.Connection, report: ScanReport, mode: str) -> None:
+    """Keep each source's latest counts for the status page (blacklist hits, flagged items...)."""
+    now = datetime.now(UTC).isoformat(timespec="seconds")
+    last = json.loads(db.get_meta(conn, "last_run") or "{}")
+    known = {r[0] for r in conn.execute("SELECT id FROM sources")}
+    sources = {k: v for k, v in last.get("sources", {}).items() if k in known}
+    for name, stats in report.sources.items():
+        sources[name] = {**asdict(stats), "errors": len(stats.errors), "at": now, "mode": mode}
+    last = {
+        "at": now,
+        "mode": mode,
+        "forgotten_blacklisted": report.forgotten_blacklisted,
+        "sources": sources,
+    }
+    db.set_meta(conn, "last_run", json.dumps(last))
+    conn.commit()
 
 
 def _forget_removed_sources(

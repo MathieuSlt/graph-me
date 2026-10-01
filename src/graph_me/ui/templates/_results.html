@@ -1,0 +1,37 @@
+{% from "_macros.html" import date, trust, flagged, entity_link, facts_table %}
+{% if result is none %}
+  <p class="muted">Search your files, mails, chats and contacts. Tier 0 matches words, not meaning: try French and English, a name, or a date range.</p>
+{% else %}
+  <title>{{ q }} · graph-me</title>
+  {% for person in result.facts %}
+  <article class="card person">
+    <h3>{{ entity_link(person.entity) }} <span class="muted small">{{ person.entity.kind }}</span></h3>
+    {{ facts_table(person.facts) }}
+  </article>
+  {% endfor %}
+  {% if not result.answer_items and not result.facts %}
+    <p>Nothing found for <strong>{{ q }}</strong>. Try other words (French and English), a person's name, or no filters.</p>
+  {% endif %}
+  {% for it in result.answer_items %}
+  <article class="card">
+    <h3><a href="/item/{{ it.id }}">{{ it.title or "(untitled)" }}</a> {{ flagged(it) }}</h3>
+    <p class="meta small">
+      <span class="badge kind-{{ it.kind }}">{{ it.kind }}</span> {{ it.source }} · {{ date(it.date) }} · {{ trust(it.trust) }}
+      {% if it.tier %}<span class="badge">tier {{ it.tier }}</span>{% endif %}
+      {% if it.get("from") %}· from <strong>{{ it.from }}</strong>{% endif %}
+      {% if it.get("to") %}· to {{ it.to|join(", ") }}{% endif %}
+    </p>
+    {% if it.path %}<p class="path small"><code>{{ it.path }}</code></p>{% endif %}
+    <p class="snippet">{{ it.snippet|squeeze }}</p>
+    {% for o in it.get("origin", []) %}
+      <p class="small">📎 came with <a href="/item/{{ o.id }}">{{ o.title or "(no subject)" }}</a>{% if o.get("from") %} from {{ o.from }}{% endif %}, {{ date(o.date) }}</p>
+    {% endfor %}
+    {% for c in it.get("saved_as", []) %}
+      <p class="small">💾 saved as <a href="/item/{{ c.id }}"><code>{{ c.path }}</code></a></p>
+    {% endfor %}
+    {% if it.get("attachments") %}<p class="small muted">attachments: {{ it.attachments|map(attribute="filename")|join(", ") }}</p>{% endif %}
+    {% if it.get("redacted") %}<p class="small muted">redacted: {{ it.redacted|join(", ") }} (reveal with <code>graph-me query --reveal</code> in a terminal)</p>{% endif %}
+  </article>
+  {% endfor %}
+  {% if result.truncated %}<p class="muted small">More results were cut to fit the context budget.</p>{% endif %}
+{% endif %}

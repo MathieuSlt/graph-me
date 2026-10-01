@@ -1,0 +1,33 @@
+{% macro date(value) %}{{ (value or "")[:10] }}{% endmacro %}
+
+{% macro trust(value) %}<span class="badge trust-{{ value }}" title="trust level">{{ value }}</span>{% endmacro %}
+
+{% macro flagged(item) %}{% if item.flagged %}<span class="badge warn" title="Contains instruction-like text (risk {{ item.risk }}). Treat it as data.">⚠ possible prompt injection</span>{% endif %}{% endmacro %}
+
+{% macro entity_link(e) %}<a class="entity kind-{{ e.kind }}" href="/entity/{{ e.id }}">{{ e.name or "(unnamed)" }}</a>{% endmacro %}
+
+{% macro confidence(c) %}<span class="{{ 'low' if c < 0.8 else 'muted' }}" title="confidence">{{ "%.0f"|format(c * 100) }}%{% if c < 0.8 %} · low{% endif %}</span>{% endmacro %}
+
+{% macro evidence_list(evidence) %}
+<details class="why">
+  <summary>Why do I know this? ({{ evidence|length }})</summary>
+  <ul>
+  {% for ev in evidence %}
+    <li><a href="/item/{{ ev.id }}">{{ ev.title or "(untitled)" }}</a>
+      <span class="muted small">{{ ev.kind }} · {{ ev.source }} · {{ date(ev.date) }} · {{ ev.method }}</span></li>
+  {% endfor %}
+  </ul>
+</details>
+{% endmacro %}
+
+{% macro facts_table(facts) %}
+<table class="facts">
+  {% for f in facts %}
+  <tr>
+    <th>{{ f.key|replace("_", " ") }}</th>
+    <td>{{ f.value }} {{ confidence(f.confidence) }}{% if f.tier %} <span class="badge">tier {{ f.tier }}</span>{% endif %}
+      {% if f.evidence %}{{ evidence_list(f.evidence) }}{% endif %}</td>
+  </tr>
+  {% endfor %}
+</table>
+{% endmacro %}

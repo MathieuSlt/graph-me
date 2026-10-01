@@ -290,8 +290,10 @@ Open questions:
 | Messaging source | msgvault recommended, not required: graph-me reads its database read-only and builds its own people and facts from any connector's messages (decided 2026-09-30) |
 | Contacts | From msgvault (raw CardDAV entries) or `.vcf` files (`vcard` connector) |
 | People | Same person only when an email or phone is shared; never by name alone |
-| Noise excludes | Version control, dependencies, virtualenvs, and dot-folders of build output and tool caches (`.next`, `.mypy_cache`, ...); not `dist/` or `build/`, which can be personal folder names. A source's `exclude` replaces the defaults, so the `init` template leaves it commented out (decided 2026-10-01) |
+| Noise excludes | Version control, dependencies, virtualenvs, dot-folders of build output and tool caches (`.next`, `.mypy_cache`, ...), lockfiles, `*.min.js`/`*.min.css`, `graphify-out/`. `dist/`, `build/`, `target/` and `out/` only inside a code project (next to `package.json`, `pyproject.toml`, `Cargo.toml`...), since they can be personal folder names elsewhere. A source's `exclude` replaces all defaults, so the `init` template leaves it commented out (decided 2026-10-01) |
+| Store size | `sync` and `scan` VACUUM `graph.db` when forgetting left at least 8 MB and a quarter of the file free (decided 2026-10-01) |
 | Ignore marker | A `.graph-me-ignore` file skips its folder unless that folder is a configured path; `make_fixtures.py` puts one on the generated fixtures (decided 2026-10-01) |
+| Web UI | Starlette + Jinja + htmx + Sigma.js, front-end libraries vendored (no CDN, works offline, no JS build). Token from the startup URL becomes an HttpOnly SameSite=Strict cookie; Host header checked against DNS rebinding; strict CSP; GET only; no `reveal`. Graph laid out in the browser with ForceAtlas2, "me" left out of the layout and hidden by default (decided 2026-10-01) |
 | Mass-forget guard | Counts only items gone from the source; files a config change now skips are forgotten without `--allow-mass-forget` (decided 2026-10-01) |
 | msgvault Gmail scope | msgvault asks for `gmail.modify` (its deletion flow); documented, graph-me stays read-only |
 

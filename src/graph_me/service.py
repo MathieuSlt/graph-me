@@ -185,6 +185,72 @@ class Service:
             out["redacted"] = sorted(set(redacted))
         return out
 
+    # -- web UI ----------------------------------------------------------------------------
+
+    def entity_page(self, eid: str) -> dict | None:
+        """One entity with its facts (and their evidence), relations and latest items."""
+        with self._conn() as conn:
+            info = graph.entity(conn, eid)
+            if info is None:
+                return None
+            info["facts"] = graph.facts_of(conn, eid)
+            info["related"] = graph.related(conn, eid, limit=30)
+            info["items"] = graph.timeline(conn, eid, limit=50)
+            info["community"] = conn.execute(
+                """SELECT c.label FROM community_members cm JOIN communities c
+                   ON c.id = cm.community_id WHERE cm.entity_id = ?""",
+                (eid,),
+            ).fetchone()
+            info["community"] = info["community"][0] if info["community"] else None
+            self._log(conn, f"entity:{eid}", [eid])
+        _redact_people([info])
+        _redact_titles(info["items"])
+        info["name"] = _redact_name(info["name"])
+        for rel in info["related"]:
+            rel["entity"]["name"] = _redact_name(rel["entity"]["name"])
+        return info
+
+    def item_page(self, item_id: str) -> dict:
+        """get_item plus what the item mentions and the facts learned from it."""
+        out = self.get_item(item_id)
+        if "error" in out:
+            return out
+        with self._conn() as conn:
+            out["entities"] = graph.item_entities(conn, item_id)
+            out["facts"] = graph.item_facts(conn, item_id)
+        out["title"] = _redact_name(out["title"])
+        for ent in out["entities"]:
+            ent["name"] = _redact_name(ent["name"])
+        for fact in out["facts"]:
+            fact["value"] = _redact_name(fact["value"])
+        return out
+
+    def graph_view(
+        self,
+        *,
+        limit: int = 2000,
+        kinds: list[str] | None = None,
+        source: str | None = None,
+        since: str | None = None,
+        until: str | None = None,
+    ) -> dict:
+        with self._conn() as conn:
+            data = graph.subgraph(
+                conn, limit=limit, kinds=kinds, source=source, since=since, until=until
+            )
+            self._log(conn, "graph", [])
+        for node in data["nodes"]:
+            node["name"] = _redact_name(node["name"])
+        return data
+
+    def neighbourhood(self, eid: str, limit: int = 200) -> dict:
+        with self._conn() as conn:
+            data = graph.neighbourhood(conn, eid, limit)
+            self._log(conn, f"graph:{eid}", [n["id"] for n in data["nodes"]])
+        for node in data["nodes"]:
+            node["name"] = _redact_name(node["name"])
+        return data
+
     def status(self) -> dict:
         with self._conn() as conn:
             sources = [
@@ -197,12 +263,36 @@ class Service:
             ]
             counts = db.counts(conn)
             tier = conn.execute("SELECT max(tier) FROM items").fetchone()[0] or 0
+            by_tier = dict(conn.execute("SELECT tier, count(*) FROM items GROUP BY tier"))
+            flagged = [
+                dict(r)
+                for r in conn.execute(
+                    """SELECT id, kind, title, source_id AS source, round(risk_score, 2) AS risk
+                       FROM items WHERE risk_score >= ? ORDER BY risk_score DESC, id LIMIT 50""",
+                    (pack.RISK_FLAG_AT,),
+                )
+            ]
+            flagged_total = conn.execute(
+                "SELECT count(*) FROM items WHERE risk_score >= ?", (pack.RISK_FLAG_AT,)
+            ).fetchone()[0]
+            last_run = json.loads(db.get_meta(conn, "last_run") or "null")
+        _redact_titles(flagged)
+        bl = self.cfg.blacklist
         return {
             "store": str(self.db_path.parent),
             "sources": sources,
             "counts": counts,
             "tier": tier,
             "note": "Tier 0: no AI; results match words, not meaning." if tier == 0 else None,
+            "items_by_tier": by_tier,
+            "flagged": flagged,
+            "flagged_total": flagged_total,
+            "last_run": last_run,
+            "blacklist": {
+                "paths": len(bl.paths),
+                "contacts": len(bl.contacts),
+                "patterns": len(bl.patterns),
+            },
         }
 
 
@@ -213,3 +303,13 @@ def _redact_people(people: list[dict]) -> list[dict]:
             for ev in fact.get("evidence", []):
                 ev["title"] = pack.redact(ev["title"] or "")[0]
     return people
+
+
+def _redact_name(text: str | None) -> str | None:
+    return pack.redact(text)[0] if text else text
+
+
+def _redact_titles(items: list[dict]) -> None:
+    """Message subjects can carry secrets too."""
+    for item in items:
+        item["title"] = _redact_name(item.get("title"))

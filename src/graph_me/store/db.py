@@ -35,6 +35,26 @@ def connect(path: Path, *, readonly: bool = False) -> sqlite3.Connection:
     return conn
 
 
+COMPACT_MIN_FREE_BYTES = 8 * 1024 * 1024
+COMPACT_MIN_FREE_SHARE = 0.25
+
+
+def compact(conn: sqlite3.Connection) -> bool:
+    """VACUUM when forgetting left a lot of empty pages (SQLite never shrinks the file itself).
+
+    Runs only when at least 8 MB and a quarter of the file are free, so small syncs stay fast.
+    """
+    pages = conn.execute("PRAGMA page_count").fetchone()[0]
+    free = conn.execute("PRAGMA freelist_count").fetchone()[0]
+    size = conn.execute("PRAGMA page_size").fetchone()[0]
+    if free * size < COMPACT_MIN_FREE_BYTES or free < COMPACT_MIN_FREE_SHARE * pages:
+        return False
+    conn.commit()
+    conn.execute("VACUUM")
+    conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+    return True
+
+
 def load_vec(conn: sqlite3.Connection) -> bool:
     """Load sqlite-vec (Tier 1 vectors) when installed and this Python allows extensions."""
     try:

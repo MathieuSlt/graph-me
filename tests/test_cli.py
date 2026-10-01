@@ -76,11 +76,10 @@ def test_install_skill(home, tmp_path):
     assert runner.invoke(app, ["install-skill", "--dest", str(dest), "--force"]).exit_code == 0
 
 
-@pytest.mark.parametrize("command", ["ui"])
-def test_future_commands_say_not_implemented(home, command):
-    result = runner.invoke(app, [command])
-    assert result.exit_code == 2
-    assert "Not implemented yet" in result.output
+def test_ui_without_a_store(home):
+    result = runner.invoke(app, ["ui", "--no-open"])
+    assert result.exit_code == 1
+    assert "graph-me scan" in result.output
 
 
 def test_uv_managed_detection(tmp_path, monkeypatch):

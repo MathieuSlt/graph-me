@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import re
 import sqlite3
 
@@ -298,3 +299,125 @@ def facts_for_query(
         if found:
             out.append({"entity": entity(conn, eid), "facts": found})
     return out
+
+
+# --- web UI: subgraphs and provenance ----------------------------------------------------------
+
+
+def _nodes(conn: sqlite3.Connection, rows: list[sqlite3.Row]) -> list[dict]:
+    me = {r[0] for r in conn.execute("SELECT entity_id FROM aliases WHERE kind = ? AND value = ?",
+                                     ME)}  # fmt: skip
+    community_of = dict(conn.execute("SELECT entity_id, community_id FROM community_members"))
+    return [
+        {
+            "id": r["id"],
+            "kind": r["kind"],
+            "name": r["name"],
+            "mentions": r["mentions"],
+            "community": community_of.get(r["id"]),
+            "is_me": r["id"] in me,
+        }
+        for r in rows
+    ]
+
+
+def _edges_between(conn: sqlite3.Connection, ids: list[str]) -> list[dict]:
+    ids_json = json.dumps(ids)
+    rows = conn.execute(
+        """SELECT src, dst, type, weight FROM relations
+           WHERE src IN (SELECT value FROM json_each(?))
+             AND dst IN (SELECT value FROM json_each(?))""",
+        (ids_json, ids_json),
+    )
+    return [{"source": s, "target": d, "type": t, "weight": w} for s, d, t, w in rows]
+
+
+def subgraph(
+    conn: sqlite3.Connection,
+    *,
+    limit: int = 2000,
+    kinds: list[str] | None = None,
+    source: str | None = None,
+    since: str | None = None,
+    until: str | None = None,
+) -> dict:
+    """The most mentioned entities (optionally only those seen in a source or date range)."""
+    where, params = [], []
+    if kinds:
+        where.append(f"e.kind IN ({','.join('?' * len(kinds))})")
+        params += kinds
+    if source:
+        where.append("i.source_id = ?")
+        params.append(source)
+    if since:
+        where.append(f"{_ITEM_DATE} >= ?")
+        params.append(since)
+    if until:
+        where.append(f"{_ITEM_DATE} <= ?")
+        params.append(until)
+    rows = conn.execute(
+        f"""SELECT e.id, e.kind, e.name, count(DISTINCT m.item_id) AS mentions
+            FROM entities e JOIN mentions m ON m.entity_id = e.id JOIN items i ON i.id = m.item_id
+            {"WHERE " + " AND ".join(where) if where else ""}
+            GROUP BY e.id ORDER BY mentions DESC, e.id LIMIT ?""",
+        [*params, limit],
+    ).fetchall()
+    nodes = _nodes(conn, rows)
+    total = conn.execute("SELECT count(*) FROM entities").fetchone()[0]
+    return {
+        "nodes": nodes,
+        "edges": _edges_between(conn, [n["id"] for n in nodes]),
+        "communities": [
+            {"id": r[0], "label": r[1]}
+            for r in conn.execute("SELECT id, label FROM communities ORDER BY id")
+        ],
+        "total_entities": total,
+        "truncated": len(nodes) >= limit,
+    }
+
+
+def neighbourhood(conn: sqlite3.Connection, eid: str, limit: int = 200) -> dict:
+    """An entity and its strongest neighbours, for expanding a node in the graph view."""
+    others = [r["entity"]["id"] for r in related(conn, eid, limit)]
+    ids = [eid, *others]
+    rows = conn.execute(
+        """SELECT e.id, e.kind, e.name, count(m.item_id) AS mentions
+           FROM entities e LEFT JOIN mentions m ON m.entity_id = e.id
+           WHERE e.id IN (SELECT value FROM json_each(?)) GROUP BY e.id""",
+        (json.dumps(ids),),
+    ).fetchall()
+    return {"nodes": _nodes(conn, rows), "edges": _edges_between(conn, ids)}
+
+
+def item_entities(conn: sqlite3.Connection, item_id: str) -> list[dict]:
+    """Entities an item mentions, with their role in it (author, recipient, folder...)."""
+    rows = conn.execute(
+        """SELECT e.id, e.kind, e.name, group_concat(DISTINCT m.role) AS roles
+           FROM mentions m JOIN entities e ON e.id = m.entity_id
+           WHERE m.item_id = ? GROUP BY e.id ORDER BY e.kind, e.name""",
+        (item_id,),
+    ).fetchall()
+    return [
+        {"id": r["id"], "kind": r["kind"], "name": r["name"], "roles": r["roles"].split(",")}
+        for r in rows
+    ]
+
+
+def item_facts(conn: sqlite3.Connection, item_id: str) -> list[dict]:
+    """Facts this item is evidence for: what graph-me learned from it."""
+    rows = conn.execute(
+        """SELECT DISTINCT f.key, f.value, f.confidence, e.id, e.kind, e.name, ev.method
+           FROM evidence ev JOIN facts f ON f.id = ev.fact_id JOIN entities e ON e.id = f.entity_id
+           WHERE ev.item_id = ? ORDER BY e.name, f.key""",
+        (item_id,),
+    ).fetchall()
+    return [
+        {
+            "key": r["key"],
+            "value": r["value"],
+            "confidence": round(r["confidence"], 2),
+            "method": r["method"],
+            "entity": {"id": r["id"], "kind": r["kind"], "name": r["name"]},
+        }
+        for r in rows
+    ]

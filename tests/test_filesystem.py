@@ -45,6 +45,31 @@ def test_build_output_is_noise(docs):
     assert not any(".next/" in f or ".mypy_cache/" in f for f in files)
 
 
+def test_build_output_of_code_projects_is_noise(docs):
+    def put(rel, text="x"):
+        (docs / rel).parent.mkdir(parents=True, exist_ok=True)
+        (docs / rel).write_text(text)
+
+    put("site/package.json", "{}")
+    put("site/dist/assets/index.js")
+    put("site/src/app.ts")
+    put("tool/Cargo.toml")
+    put("tool/target/debug/notes.md")
+    put("Maison/build/plans.md", "plans de la maison")  # no project file: a personal folder
+    put("site/package-lock.json", "{}")
+    put("site/vendor/lib.min.js")
+    put("blink/graphify-out/graph.json", "{}")
+    files = listed(connector(docs))
+    assert "site/src/app.ts" in files and "Maison/build/plans.md" in files
+    for skipped in ("site/dist/assets/index.js", "tool/target/debug/notes.md",
+                    "site/package-lock.json", "site/vendor/lib.min.js",
+                    "blink/graphify-out/graph.json"):  # fmt: skip
+        assert skipped not in files, skipped
+        assert connector(docs).excluded(str(docs / skipped)), skipped
+    # a custom exclude list replaces every default, this rule included
+    assert "site/dist/assets/index.js" in listed(connector(docs, exclude=[]))
+
+
 def test_marked_folder_is_skipped_unless_configured(docs):
     fixtures = docs / "graph-me" / "tests" / "fixtures"
     fixtures.mkdir(parents=True)
