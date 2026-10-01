@@ -2,6 +2,7 @@
 
 import stat
 
+import click
 import pytest
 from typer.testing import CliRunner
 
@@ -130,7 +131,8 @@ def test_misspelled_option_in_config(home, tmp_path):
 def test_typos_are_rejected(home, args, message):
     runner.invoke(app, ["init"])
     result = runner.invoke(app, args)
-    flat = " ".join(result.output.replace("│", " ").split())  # the error box wraps lines
+    text = click.unstyle(result.output)  # Rich colours output when GITHUB_ACTIONS is set
+    flat = " ".join(text.replace("│", " ").split())  # the error box wraps lines
     assert result.exit_code == 2 and message in flat
 
 
