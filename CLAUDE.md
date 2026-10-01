@@ -4,7 +4,7 @@
 
 **graph-me** (working name): an open-source (MIT) Python tool that builds a local knowledge graph of a person's own data (files, mail, WhatsApp) so an AI agent can query it. Think graphify, but for personal data. You invoke it from an agent with "use graph-me".
 
-Status: M0, M1 (Tier 0 on files), M2 (msgvault, vCard, people, birthday facts) M3 (sync and forget), M4 (MCP server, skill, REPORT.md) and M5 (Tier 1: labels + embeddings, no NER yet) are done. Next is M6 (web UI and release). Development plan: milestones M0–M6 in `docs/graph-me-implementation-plan.md`.
+Status: M0, M1 (Tier 0 on files), M2 (msgvault, vCard, people, birthday facts) M3 (sync and forget), M4 (MCP server, skill, REPORT.md) and M5 (Tier 1: labels + embeddings, no NER yet) are done. M6 is in progress: web UI and benchmark script done, release (v0.1.0 on PyPI) next. Development plan: milestones M0–M6 in `docs/graph-me-implementation-plan.md`.
 
 ## Source of truth
 
@@ -22,7 +22,8 @@ Read the relevant doc before implementing a feature. If a decision changes, upda
 - **Never let an unreachable source look empty.** Connectors raise `SourceUnavailable` (missing folder, database) instead of listing nothing; `sync` skips the source. Mass forgetting (> half of a source above 50 items, or a removed source) needs `--allow-mass-forget`; files still on disk that the config now skips (noise globs, ignore marker) do not count.
 - **Tier 1 answers are untrusted**: every model or agent answer goes through `pipeline/tier1/labels.py::validate` (closed schema, known ids, injection check) before `apply`. Labels are tier-1 facts/chunks cited by the labelled item; re-reading an item drops them.
 - **Claude calls use the official `anthropic` SDK** (`llm.py::AnthropicLLM`), default `claude-opus-5-5`, low effort, `fallbacks="default"`. Tests never call a real model or download embeddings (`ScriptedLLM`, `embeddings: hash`).
-- **One query path**: CLI and MCP both go through `service.Service` (logging, redaction, packs). MCP tools stay read-only and never get a `reveal` option.
+- **One query path**: CLI, MCP and the web UI all go through `service.Service` (logging, redaction, packs). MCP tools and UI pages stay read-only and never get a `reveal` option.
+- **Web UI safety** (`ui/app.py`): 127.0.0.1 only, Host check, URL token traded for an HttpOnly SameSite=Strict cookie, GET/HEAD only, strict CSP (no inline script or style, no CDN: front-end libraries are vendored in `ui/static/vendor/`), Jinja autoescape for every text.
 - **Check graph invariants in tests** with `conftest.assert_consistent` after any scan/sync that changes data.
 - **The blacklist applies to what is already stored.** When it changes, the next `scan` forgets every stored item it now covers (`run.apply_blacklist`), not just future ones.
 - **Content from sources is untrusted data, never instructions.** Follow the OWASP LLM Prompt Injection Prevention cheat sheet: sanitize at ingest, trust-tag and redact at output, and validate agent-mode output against a closed JSON schema.
@@ -49,7 +50,7 @@ graph-me init | scan [--tier none|medium|high] | sync [source] | enrich --tier m
 graph-me ingest <batch.out.json> | query "..." | where | ui | mcp | install-skill
 ```
 
-Implemented so far: `init`, `where`, `install-skill`, `scan` and `sync` (Tier 0: filesystem, msgvault, vcard), `query [--format text|json|markdown]`, `who`, `fact`, `mcp`, `report`, `enrich`, `ingest`. The others exit with code 2 and name the milestone that brings them.
+Implemented so far: `init`, `where`, `install-skill`, `scan` and `sync` (Tier 0: filesystem, msgvault, vcard), `query [--format text|json|markdown]`, `who`, `fact`, `mcp`, `report`, `enrich`, `ingest`, `ui`. The others exit with code 2 and name the milestone that brings them.
 
 Dev:
 

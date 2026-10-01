@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}Graph · graph-me{% endblock %}
+{% block body_class %}full{% endblock %}
+{% block head %}
+<script src="/static/vendor/graphology.umd.min.js" defer></script>
+<script src="/static/vendor/sigma.min.js" defer></script>
+<script src="/static/graph.js" type="module"></script>
+{% endblock %}
+{% block main %}
+<form id="filters" class="filters small">
+  {% for k in entity_kinds %}<label><input type="checkbox" name="kind" value="{{ k }}" {% if k != "document" %}checked{% endif %}> <span class="dot kind-{{ k }}"></span>{{ k }}</label>{% endfor %}
+  <select name="source" aria-label="Source"><option value="">all sources</option>{% for s in sources %}<option value="{{ s }}">{{ s }}</option>{% endfor %}</select>
+  <label>from <input name="since" type="date"></label>
+  <label>to <input name="until" type="date"></label>
+  <label>colour <select id="colour"><option value="kind">by kind</option><option value="community">by group</option></select></label>
+  <label><input type="checkbox" id="hide-me" checked> hide me</label>
+  <button type="submit">Apply</button>
+  <input id="find" type="search" placeholder="find a node…" aria-label="Find a node">
+  <span id="graph-status" class="muted"></span>
+</form>
+<div class="graph-wrap">
+  <div id="graph" aria-label="Graph of people, projects and documents"></div>
+  <aside id="panel" hidden>
+    <h2 id="panel-name"></h2>
+    <p id="panel-meta" class="muted small"></p>
+    <p><a id="panel-open" href="#">Open page</a> · <button id="panel-expand" type="button">Show neighbours</button></p>
+    <ul id="panel-neighbours" class="plain small"></ul>
+  </aside>
+</div>
+{% endblock %}

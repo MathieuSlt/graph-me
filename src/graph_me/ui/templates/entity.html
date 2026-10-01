@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% from "_macros.html" import date, trust, entity_link, facts_table %}
+{% block title %}{{ e.name or "entity" }} · graph-me{% endblock %}
+{% block main %}
+<h1>{{ e.name or "(unnamed)" }} <span class="badge kind-{{ e.kind }}">{{ e.kind }}</span>{% if e.is_me %} <span class="badge">you</span>{% endif %}</h1>
+<p class="muted">{{ e.mentions }} item{{ "s" if e.mentions != 1 }}{% if e.community %} · group: {{ e.community }}{% endif %} · <a href="/graph#{{ e.id }}">show in graph</a></p>
+
+<div class="cols">
+  <section>
+    {% if e.aliases %}
+    <h2>Identifiers</h2>
+    <ul class="plain">{% for a in e.aliases %}<li><span class="muted small">{{ a.kind }}</span> <code>{{ a.value }}</code></li>{% endfor %}</ul>
+    {% endif %}
+    <h2>Facts</h2>
+    {% if e.facts %}{{ facts_table(e.facts) }}{% else %}<p class="muted">No facts yet.</p>{% endif %}
+    <h2>Related</h2>
+    {% if e.related %}
+    <ul class="plain">{% for r in e.related %}
+      <li>{{ entity_link(r.entity) }} <span class="muted small">{{ r.type|replace("_", " ") }} {{ "→" if r.direction == "out" else "←" }} · weight {{ r.weight|round(1) }}</span></li>
+    {% endfor %}</ul>
+    {% else %}<p class="muted">No relations.</p>{% endif %}
+  </section>
+  <section>
+    <h2>Items</h2>
+    {% if e["items"] %}
+    <ul class="plain items">{% for it in e["items"] %}
+      <li><a href="/item/{{ it.id }}">{{ it.title or "(untitled)" }}</a>
+        <span class="muted small">{{ it.kind }} · {{ it.source }} · {{ date(it.date) }}</span> {{ trust(it.trust) }}</li>
+    {% endfor %}</ul>
+    {% else %}<p class="muted">No items.</p>{% endif %}
+  </section>
+</div>
+{% endblock %}

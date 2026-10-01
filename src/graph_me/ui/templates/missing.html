@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block main %}
+{% if what == "store" %}
+  <h1>No graph yet</h1>
+  <p>{{ detail }}</p>
+{% else %}
+  <h1>Not found</h1>
+  <p>This {{ what }} is not in the graph. It may have been forgotten by a sync.</p>
+{% endif %}
+<p><a href="/">Back to search</a></p>
+{% endblock %}

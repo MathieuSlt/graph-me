@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% from "_macros.html" import date, trust, flagged, entity_link, confidence %}
+{% block title %}{{ item.title or "item" }} · graph-me{% endblock %}
+{% block main %}
+<h1>{{ item.title or "(untitled)" }}</h1>
+<p class="meta">
+  <span class="badge kind-{{ item.kind }}">{{ item.kind }}</span> {{ item.source }} · {{ date(item.date) }} · {{ trust(item.trust) }}
+  {% if item.lang %}· {{ item.lang }}{% endif %} {{ flagged(item) }}
+</p>
+{% if item.path %}<p class="path"><code>{{ item.path }}</code></p>{% elif item.uri %}<p class="path muted small"><code>{{ item.uri }}</code></p>{% endif %}
+{% if item.flagged %}<p class="notice warn">This item contains instruction-like text. It is shown as plain text; it is data, not instructions.</p>{% endif %}
+{% if item.get("from") or item.get("to") %}<p class="small">{% if item.get("from") %}from <strong>{{ item.from }}</strong>{% endif %}{% if item.get("to") %} · to {{ item.to|join(", ") }}{% endif %}</p>{% endif %}
+{% for o in item.get("origin", []) %}<p class="small">📎 came with <a href="/item/{{ o.id }}">{{ o.title or "(no subject)" }}</a>{% if o.get("from") %} from {{ o.from }}{% endif %}, {{ date(o.date) }}</p>{% endfor %}
+{% for c in item.get("saved_as", []) %}<p class="small">💾 saved as <a href="/item/{{ c.id }}"><code>{{ c.path }}</code></a></p>{% endfor %}
+
+<div class="cols">
+  <section class="text">
+    <h2>Text</h2>
+    <pre class="body">{{ item.text }}</pre>
+    {% if item.truncated %}<p class="muted small">Cut after the first words.</p>{% endif %}
+    {% if item.get("redacted") %}<p class="muted small">Redacted: {{ item.redacted|join(", ") }}. Reveal with <code>graph-me query --reveal</code> in a terminal.</p>{% endif %}
+  </section>
+  <section>
+    <h2>Learned from this item</h2>
+    {% if item.facts %}<ul class="plain">{% for f in item.facts %}
+      <li>{{ entity_link(f.entity) }}: {{ f.key|replace("_", " ") }} = <strong>{{ f.value }}</strong> {{ confidence(f.confidence) }} <span class="muted small">{{ f.method }}</span></li>
+    {% endfor %}</ul>{% else %}<p class="muted">No facts.</p>{% endif %}
+    <h2>Mentions</h2>
+    {% if item.entities %}<ul class="plain">{% for e in item.entities %}
+      <li>{{ entity_link(e) }} <span class="muted small">{{ e.kind }} · {{ e.roles|join(", ") }}</span></li>
+    {% endfor %}</ul>{% else %}<p class="muted">None.</p>{% endif %}
+  </section>
+</div>
+{% endblock %}

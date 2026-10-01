@@ -235,6 +235,24 @@ def test_newly_excluded_files_need_no_permission(conn, docs):
     assert_consistent(conn)
 
 
+def test_big_forget_compacts_the_store(tmp_path, docs):
+    db_path = tmp_path / "graph.db"
+    conn = db.connect(db_path)
+    big = "".join(f"ligne {n} du journal de bord numéro {n * 7}\n" for n in range(20_000))
+    for n in range(12):
+        (docs / f"journal{n}.txt").write_text(big)
+    cfg = docs_config(docs)
+    run.sync(conn, cfg, workers=1)
+    full = db_path.stat().st_size
+    for n in range(12):
+        (docs / f"journal{n}.txt").unlink()
+    run.sync(conn, cfg, workers=1)
+    assert conn.execute("PRAGMA freelist_count").fetchone()[0] == 0
+    assert db_path.stat().st_size < full / 2
+    assert_consistent(conn)
+    conn.close()
+
+
 def test_deleted_files_still_need_permission(conn, docs):
     for n in range(80):
         (docs / f"note{n}.txt").write_text(f"note {n}\n")

@@ -395,7 +395,7 @@ Test layers:
 | MCP | Tools called through the MCP SDK client | CI |
 | Benchmark | Scan time, DB size, query latency on the 2 GB dataset | Local only, results in a markdown table |
 
-Benchmark targets (to confirm on the first run): Tier 0 scan of 2 GB under 15 minutes, query under 300 ms, graph.db under 20% of source size.
+Benchmark targets (to confirm on the first run): Tier 0 scan of 2 GB under 15 minutes, query under 300 ms, graph.db under 20% of source size. `scripts/benchmark.py` measures them. The size target assumes mostly PDFs, office files and mail: plain-text sources (code, notes) are stored as text plus their full-text index, so they weigh more than their own size.
 
 ## Milestones
 

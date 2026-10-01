@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  {# no inline styles (CSP), no eval, no history snapshots of personal pages in localStorage #}
+  <meta name="htmx-config" content='{"includeIndicatorStyles": false, "allowEval": false, "allowScriptTags": false, "selfRequestsOnly": true, "historyCacheSize": 0}'>
+  <title>{% block title %}graph-me{% endblock %}</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="/static/app.css">
+  <script src="/static/vendor/htmx.min.js" defer></script>
+  {% block head %}{% endblock %}
+</head>
+<body class="{% block body_class %}{% endblock %}">
+  <header class="top">
+    <a class="brand" href="/">graph-me</a>
+    <nav>
+      <a href="/" {% if request.url.path in ("/", "/search") %}aria-current="page"{% endif %}>Search</a>
+      <a href="/graph" {% if request.url.path == "/graph" %}aria-current="page"{% endif %}>Graph</a>
+      <a href="/status" {% if request.url.path == "/status" %}aria-current="page"{% endif %}>Status</a>
+    </nav>
+    <span class="muted small">read-only · v{{ version }}</span>
+  </header>
+  <main>{% block main %}{% endblock %}</main>
+</body>
+</html>

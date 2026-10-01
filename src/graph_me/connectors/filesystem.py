@@ -4,7 +4,8 @@ Config keys (under ``sources.<name>``):
 
 - ``paths``: folders (or single files) to index
 - ``exclude``: glob patterns for noise; ``**`` crosses folders. Defaults to DEFAULT_EXCLUDE
-  when omitted; a list replaces the defaults. Nothing personal is excluded by default: use the
+  when omitted, plus build folders (``dist``, ``build``, ``target``, ``out``) of code projects;
+  a list replaces all of these. Nothing personal is excluded by default: use the
   blacklist for that.
 
 A folder holding an ``IGNORE_MARKER`` file is skipped with everything under it, unless it is
@@ -52,7 +53,25 @@ DEFAULT_EXCLUDE = (
     "**/.terraform/**",
     "**/.Trash/**",
     "**/graph-out/**",
+    "**/graphify-out/**",
+    # generated files: lockfiles, minified bundles
+    "**/package-lock.json",
+    "**/yarn.lock",
+    "**/pnpm-lock.yaml",
+    "**/uv.lock",
+    "**/poetry.lock",
+    "**/Cargo.lock",
+    "**/*.min.js",
+    "**/*.min.css",
 )
+
+# With the default excludes, these folders are build output when the folder holding them is a
+# code project (it has one of PROJECT_FILES). A "build" folder anywhere else stays indexed.
+BUILD_DIRS = frozenset({"dist", "build", "target", "out"})
+PROJECT_FILES = (
+    "package.json", "pyproject.toml", "setup.py", "Cargo.toml", "pom.xml", "build.gradle",
+    "build.gradle.kts", "shadow-cljs.edn", "deps.edn", "go.mod",
+)  # fmt: skip
 
 IGNORE_MARKER = ".graph-me-ignore"
 
@@ -100,6 +119,7 @@ class FilesystemConnector:
         self.name = name
         self.roots = [Path(p).expanduser().resolve() for p in extra.get("paths", [])]
         self.exclude = [glob_to_regex(p) for p in extra.get("exclude", DEFAULT_EXCLUDE)]
+        self.skip_build_output = "exclude" not in extra  # part of the defaults
         self.blocked = [Path(p).expanduser().resolve() for p in blacklist.paths]
         self.trust = extra.get("trust", "self")
         if self.trust not in ("self", "known", "untrusted"):
@@ -111,7 +131,16 @@ class FilesystemConnector:
         probe = posix + "x" if is_dir else posix
         if any(rx.fullmatch(probe) for rx in self.exclude):
             return True
+        if is_dir and self._is_build_output(path):
+            return True
         return any(path == b or path.is_relative_to(b) for b in self.blocked)
+
+    def _is_build_output(self, folder: Path) -> bool:
+        return (
+            self.skip_build_output
+            and folder.name in BUILD_DIRS
+            and any((folder.parent / f).is_file() for f in PROJECT_FILES)
+        )
 
     def excluded(self, external_id: str) -> bool:
         """The file is still on disk, under a configured path, but the walk now skips it."""

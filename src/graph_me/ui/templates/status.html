@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}Status · graph-me{% endblock %}
+{% block main %}
+<h1>Status</h1>
+<p class="muted">Store: <code>{{ s.store }}</code> · highest tier: {{ s.tier }}{% if s.note %} · {{ s.note }}{% endif %}</p>
+
+<h2>Sources</h2>
+<table class="grid">
+  <thead><tr><th>Source</th><th>Type</th><th>Items</th><th>Last sync</th><th>Last run</th></tr></thead>
+  <tbody>
+  {% for src in s.sources %}
+    {% set run = (s.last_run or {}).get("sources", {}).get(src.name) %}
+    <tr>
+      <td>{{ src.name }}</td><td>{{ src.type }}</td><td>{{ src["items"] }}</td>
+      <td>{{ (src.last_sync_at or "never")|replace("T", " ") }}</td>
+      <td class="small">{% if run %}{{ run.mode }}: {{ run.seen }} seen, {{ run.added }} added, {{ run.updated }} updated, {{ run.forgotten }} forgotten, {{ run.blacklisted }} blacklisted, {{ run.flagged }} flagged{% if run.parse_errors %}, {{ run.parse_errors }} unreadable{% endif %}
+        {% if run.failure %}<br><span class="warn-text">skipped: {{ run.failure }}</span>{% endif %}{% else %}<span class="muted">—</span>{% endif %}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+
+<div class="cols">
+  <section>
+    <h2>Graph</h2>
+    <table class="grid">
+      {% for name, n in s.counts.items() %}<tr><th>{{ name }}</th><td>{{ n }}</td></tr>{% endfor %}
+      {% for tier, n in s.items_by_tier.items() %}<tr><th>items at tier {{ tier }}</th><td>{{ n }}</td></tr>{% endfor %}
+    </table>
+  </section>
+  <section>
+    <h2>Blacklist</h2>
+    <p>{{ s.blacklist.paths }} path{{ "s" if s.blacklist.paths != 1 }}, {{ s.blacklist.contacts }} contact{{ "s" if s.blacklist.contacts != 1 }}, {{ s.blacklist.patterns }} pattern{{ "s" if s.blacklist.patterns != 1 }} in <code>config.yaml</code>.</p>
+    {% if s.last_run %}<p class="small">Last run ({{ s.last_run.at|replace("T", " ") }}): {{ s.last_run.forgotten_blacklisted }} stored item{{ "s" if s.last_run.forgotten_blacklisted != 1 }} forgotten because the blacklist changed.</p>{% endif %}
+  </section>
+</div>
+
+<h2>Possible prompt injections ({{ s.flagged_total }})</h2>
+{% if s.flagged %}
+<p class="muted small">Items with instruction-like text. They stay searchable and are always shown as data.</p>
+<ul class="plain">{% for it in s.flagged %}
+  <li><a href="/item/{{ it.id }}">{{ it.title or "(untitled)" }}</a> <span class="muted small">{{ it.kind }} · {{ it.source }} · risk {{ it.risk }}</span></li>
+{% endfor %}</ul>
+{% if s.flagged_total > s.flagged|length %}<p class="muted small">Showing the {{ s.flagged|length }} riskiest.</p>{% endif %}
+{% else %}<p class="muted">None.</p>{% endif %}
+{% endblock %}
