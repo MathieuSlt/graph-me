@@ -14,6 +14,8 @@ computer unless you turn on an AI provider yourself.
 You can use it from [Claude Code](https://claude.com/claude-code) or any app that supports MCP
 ("use graph-me: where is my lease?"), from the terminal, or in a small web page on your machine.
 
+Documentation: <https://mathieuslt.github.io/graph-me/>
+
 > graph-me is alpha software (0.1.0). It runs on Linux and macOS. See
 > [CHANGELOG.md](CHANGELOG.md) for what changed.
 
@@ -438,7 +440,8 @@ uv run ruff check && uv run ruff format --check
 uv run graph-me where         # inside the clone, config.yaml and graph-out/ live at its root
 ```
 
-The tests use only synthetic data from `tests/factory.py`. Design notes are in `docs/`.
+The tests use only synthetic data from `tests/factory.py`. Design notes are in `docs/`, next to
+the pages of the documentation site (`uv run --group docs zensical serve -a 127.0.0.1:8000` to preview it).
 `scripts/benchmark.py --config <config.yaml>` measures scan time, index size and query speed on
 your own data and prints numbers only, so you can share the result.
 

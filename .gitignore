@@ -13,3 +13,4 @@ graph-out/
 *.db-shm
 tests/fixtures/generated/
 config.yaml
+site/

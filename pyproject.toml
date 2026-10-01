@@ -36,6 +36,7 @@ dependencies = [
 
 [project.urls]
 Homepage = "https://github.com/MathieuSlt/graph-me"
+Documentation = "https://mathieuslt.github.io/graph-me/"
 Issues = "https://github.com/MathieuSlt/graph-me/issues"
 Changelog = "https://github.com/MathieuSlt/graph-me/blob/main/CHANGELOG.md"
 
@@ -50,6 +51,9 @@ graph-me = "graph_me.cli:app"
 
 [dependency-groups]
 dev = ["pytest>=9.1", "hypothesis>=6.168", "ruff>=0.13"]
+docs = [
+    "zensical>=0.0.67",
+]
 
 [build-system]
 requires = ["hatchling>=1.27"]

@@ -60,6 +60,7 @@ uv sync --extra medium --extra ui   # [ner] pulls PyTorch; add --all-extras only
 uv run pytest -q                    # mail/WhatsApp tests need msgvault: scripts/install_msgvault.sh
 uv run ruff check && uv run ruff format --check
 uv run graph-me where               # inside the clone: config.yaml and graph-out/ at the repo root (both git-ignored)
+uv run --group docs zensical serve -a 127.0.0.1:8000  # docs site (docs/ + zensical.toml), deployed to GitHub Pages by .github/workflows/docs.yml
 ```
 
 User install: `uv tool install --managed-python graph-me`.

@@ -1,0 +1,78 @@
+# Documentation site, built with Zensical and published to GitHub Pages by
+# .github/workflows/docs.yml. Preview locally: uv run --group docs zensical serve -a 127.0.0.1:8000
+
+[project]
+site_name = "graph-me"
+site_description = "A local knowledge graph of your own files, mail, chats and contacts, for you and your AI assistant."
+site_url = "https://mathieuslt.github.io/graph-me/"
+repo_url = "https://github.com/MathieuSlt/graph-me"
+repo_name = "MathieuSlt/graph-me"
+edit_uri = "edit/main/docs/"
+copyright = "MIT License"
+strict = true
+
+nav = [
+  { "Home" = "index.md" },
+  { "Get started" = [
+    "install.md",
+    "quickstart.md",
+  ] },
+  { "Guides" = [
+    "assistants.md",
+    "web-ui.md",
+    "tier1.md",
+  ] },
+  { "Reference" = [
+    "commands.md",
+    "configuration.md",
+    "privacy.md",
+  ] },
+  { "Project" = [
+    "development.md",
+    "changelog.md",
+    { "Design: discovery" = "graph-me-discovery.md" },
+    { "Design: implementation plan" = "graph-me-implementation-plan.md" },
+  ] },
+]
+
+[project.theme]
+language = "en"
+features = [
+  "content.action.edit",
+  "content.code.copy",
+  "navigation.footer",
+  "navigation.instant",
+  "navigation.sections",
+  "navigation.top",
+  "navigation.tracking",
+  "search.highlight",
+  "toc.follow",
+]
+
+[[project.theme.palette]]
+media = "(prefers-color-scheme: light)"
+scheme = "default"
+toggle.icon = "lucide/sun"
+toggle.name = "Switch to dark mode"
+
+[[project.theme.palette]]
+media = "(prefers-color-scheme: dark)"
+scheme = "slate"
+toggle.icon = "lucide/moon"
+toggle.name = "Switch to light mode"
+
+[project.markdown_extensions]
+abbr = {}
+admonition = {}
+attr_list = {}
+md_in_html = {}
+tables = {}
+toc.permalink = true
+pymdownx.details = {}
+pymdownx.highlight = {}
+pymdownx.inlinehilite = {}
+pymdownx.superfences = {}
+pymdownx.tabbed.alternate_style = true
+# The changelog page includes CHANGELOG.md from the repo root.
+pymdownx.snippets.base_path = ["."]
+pymdownx.snippets.check_paths = true
