@@ -3,6 +3,17 @@
 All notable changes to graph-me. Versions follow [semantic versioning](https://semver.org/);
 before 1.0, minor versions may break the config or the store.
 
+## Unreleased
+
+### Added
+
+- **Corrections** in `overrides.yaml`: `graph-me link` and `unlink` fix who is who, `relate`
+  says how someone relates to you (so "my sister's birthday" works without Tier 1), and
+  `fact --set/--reject` fixes a fact. Corrections are cited as "set by you" and removing one
+  undoes it. `graph-me overrides` shows them.
+- **Index freshness**: every answer (CLI, MCP, Markdown) says when the index was last synced,
+  and warns after `index.stale_after_days` (7 by default).
+
 ## 0.1.0 (2026-10-01)
 
 First public release.

@@ -4,7 +4,7 @@
 
 **graph-me** (working name): an open-source (MIT) Python tool that builds a local knowledge graph of a person's own data (files, mail, WhatsApp) so an AI agent can query it. Think graphify, but for personal data. You invoke it from an agent with "use graph-me".
 
-Status: M0, M1 (Tier 0 on files), M2 (msgvault, vCard, people, birthday facts) M3 (sync and forget), M4 (MCP server, skill, REPORT.md) and M5 (Tier 1: labels + embeddings, no NER yet) are done. M6 is in progress: web UI and benchmark script done; 0.1.0 is prepared (`CHANGELOG.md`, `.github/workflows/release.yml`: push a `v*` tag to publish to PyPI by trusted publishing).
+Status: M0, M1 (Tier 0 on files), M2 (msgvault, vCard, people, birthday facts) M3 (sync and forget), M4 (MCP server, skill, REPORT.md) and M5 (Tier 1: labels + embeddings, no NER yet) are done. M6 is in progress: web UI and benchmark script done; 0.1.0 is released (`.github/workflows/release.yml`: push a `v*` tag to publish to PyPI by trusted publishing). Roadmap M7–M12 is in the implementation plan; M7 (corrections in `overrides.yaml`, index freshness) is done.
 - **Open source, English only**: docs, CLI, UI, examples and placeholders are in English and never refer to the maintainer's own data. French appears only in the French rule pack and the synthetic test fixtures that exercise it. Development plan: milestones M0–M6 in `docs/graph-me-implementation-plan.md`.
 
 ## Source of truth
@@ -32,6 +32,7 @@ Read the relevant doc before implementing a feature. If a decision changes, upda
 - **Reuse existing tools rather than rewriting them.** msgvault is the recommended messaging source (read-only, `connectors/msgvault.py`). Don't build native mail or WhatsApp connectors in v1.
 - **People and facts are graph-me's own and connector-neutral** (`pipeline/tier0/people.py`, `facts.py`): built from `Item.author` / `recipients` / `contact`. Never import msgvault's person merges or inferred facts; only raw address-book fields.
 - **Two people are the same only if they share an email or phone** (`pipeline/resolve.py`); a shared name never merges.
+- **User corrections are a source, not DB edits.** `overrides.yaml` is read by the built-in `_overrides` connector; facts and relations it sets are cited `user:*`. Only the CLI writes that file (never a source, MCP or the UI).
 - Nothing is excluded by default. Only the user's blacklist and noise globs (build folders, caches) filter content.
 
 ## Stack and conventions
@@ -48,10 +49,11 @@ Read the relevant doc before implementing a feature. If a decision changes, upda
 
 ```
 graph-me init | where | install-skill | scan | sync [--source] | report
-graph-me query | who | fact | enrich [--llm agent|ollama|anthropic|openai_compat] | ingest | ui | mcp
+graph-me query | who | fact [--set|--reject] | link | unlink | relate | overrides
+graph-me enrich [--llm agent|ollama|anthropic|openai_compat] | ingest | ui | mcp
 ```
 
-Implemented so far: `init`, `where`, `install-skill`, `scan` and `sync` (Tier 0: filesystem, msgvault, vcard), `query [--format text|json|markdown]`, `who`, `fact`, `mcp`, `report`, `enrich`, `ingest`, `ui`. The others exit with code 2 and name the milestone that brings them.
+Implemented so far: `init`, `where`, `install-skill`, `scan` and `sync` (Tier 0: filesystem, msgvault, vcard), `query [--format text|json|markdown]`, `who`, `fact`, `link`, `unlink`, `relate`, `overrides`, `mcp`, `report`, `enrich`, `ingest`, `ui`. The others exit with code 2 and name the milestone that brings them.
 
 Dev:
 

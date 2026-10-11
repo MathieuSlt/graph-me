@@ -14,6 +14,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from graph_me.config import Config
+from graph_me.overrides import SOURCE as OVERRIDES_SOURCE
 from graph_me.query import engine, graph, pack
 from graph_me.store import db
 
@@ -22,6 +23,17 @@ ITEM_MAX_WORDS = 4000  # get_item returns at most this much text
 
 class StoreMissing(RuntimeError):
     pass
+
+
+def freshness(conn: sqlite3.Connection, stale_after_days: int) -> dict:
+    """When the index was last synced: the oldest source counts (one stale source is enough)."""
+    oldest = conn.execute(
+        "SELECT min(last_sync_at) FROM sources WHERE id != ?", (OVERRIDES_SOURCE,)
+    ).fetchone()[0]
+    if not oldest:
+        return {"last_sync_at": None, "age_days": None, "stale": False}
+    age = (datetime.now(UTC) - datetime.fromisoformat(oldest)).days
+    return {"last_sync_at": oldest, "age_days": age, "stale": age > stale_after_days}
 
 
 class Service:
@@ -53,6 +65,9 @@ class Service:
             return embed.get(stored.rsplit(":", 1)[0])
         except ImportError:
             return None
+
+    def _freshness(self, conn: sqlite3.Connection) -> dict:
+        return freshness(conn, self.cfg.index.stale_after_days)
 
     def _log(self, conn: sqlite3.Connection, query: str, result_ids: list[str]) -> None:
         conn.execute(
@@ -87,6 +102,7 @@ class Service:
                 extras=graph.enrich_hits(conn, [h.item_id for h in hits]),
                 reveal=reveal,
             )
+            result["index"] = self._freshness(conn)
             self._log(conn, query, [i["id"] for i in result["answer_items"]])
         return result
 
@@ -105,15 +121,18 @@ class Service:
     def who_is(self, who: str) -> dict:
         with self._conn() as conn:
             people = graph.who_is(conn, who, self.cfg.people)
+            index = self._freshness(conn)
             self._log(conn, f"who_is:{who}", [p["id"] for p in people])
-        return {"query": who, "notice": pack.NOTICE, "people": _redact_people(people)}
+        return {"query": who, "notice": pack.NOTICE, "people": _redact_people(people),
+                "index": index}  # fmt: skip
 
     def get_fact(self, who: str, key: str) -> dict:
         with self._conn() as conn:
             found = graph.get_fact(conn, who, key, self.cfg.people)
+            index = self._freshness(conn)
             self._log(conn, f"get_fact:{who}:{key}", [p["entity"]["id"] for p in found])
         _redact_people(found)
-        return {"query": f"{who} {key}", "notice": pack.NOTICE, "results": found}
+        return {"query": f"{who} {key}", "notice": pack.NOTICE, "results": found, "index": index}
 
     def related(self, who: str, limit: int = 10) -> dict:
         with self._conn() as conn:
@@ -123,8 +142,9 @@ class Service:
                 out.append(
                     {"entity": graph.entity(conn, eid), "related": graph.related(conn, eid, limit)}
                 )
+            index = self._freshness(conn)
             self._log(conn, f"related:{who}", people)
-        return {"query": who, "notice": pack.NOTICE, "results": out}
+        return {"query": who, "notice": pack.NOTICE, "results": out, "index": index}
 
     def timeline(
         self, who: str, *, since: str | None = None, until: str | None = None, limit: int = 20
@@ -139,8 +159,9 @@ class Service:
                         "items": graph.timeline(conn, eid, since=since, until=until, limit=limit),
                     }
                 )
+            index = self._freshness(conn)
             self._log(conn, f"timeline:{who}", people)
-        return {"query": who, "notice": pack.NOTICE, "results": out}
+        return {"query": who, "notice": pack.NOTICE, "results": out, "index": index}
 
     def get_item(self, item_id: str, *, reveal: bool = False) -> dict:
         """One item's full text (redacted, trust-tagged, capped at ITEM_MAX_WORDS)."""
@@ -157,6 +178,7 @@ class Service:
                 )
             )  # fmt: skip
             extras = graph.enrich_hits(conn, [item_id]).get(item_id, {})
+            index = self._freshness(conn)
             self._log(conn, f"get_item:{item_id}", [item_id])
         words = text.split(" ")
         truncated = len(words) > ITEM_MAX_WORDS
@@ -180,6 +202,7 @@ class Service:
             "text": text,
             "truncated": truncated,
             **extras,
+            "index": index,
         }
         if redacted:
             out["redacted"] = sorted(set(redacted))
@@ -276,6 +299,7 @@ class Service:
                 "SELECT count(*) FROM items WHERE risk_score >= ?", (pack.RISK_FLAG_AT,)
             ).fetchone()[0]
             last_run = json.loads(db.get_meta(conn, "last_run") or "null")
+            index = self._freshness(conn)
         _redact_titles(flagged)
         bl = self.cfg.blacklist
         return {
@@ -288,6 +312,7 @@ class Service:
             "flagged": flagged,
             "flagged_total": flagged_total,
             "last_run": last_run,
+            "index": index,
             "blacklist": {
                 "paths": len(bl.paths),
                 "contacts": len(bl.contacts),

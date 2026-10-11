@@ -27,7 +27,9 @@ app = typer.Typer(
     add_completion=False,
 )
 
-SETUP, INDEX, ASK, AI, INTERFACES = "Set up", "Index", "Ask", "AI enrichment", "Interfaces"
+SETUP, INDEX, ASK, CORRECT, AI, INTERFACES = (
+    "Set up", "Index", "Ask", "Correct", "AI enrichment", "Interfaces"
+)  # fmt: skip
 KINDS = ("file", "email", "message", "contact")
 FORMATS = ("text", "json", "markdown")
 PROVIDERS = ("agent", "ollama", "anthropic", "openai_compat")
@@ -147,6 +149,22 @@ def _service(c: Context, interface: str = "cli"):
     from graph_me.service import Service
 
     return Service(c.config, c.db_path, interface)
+
+
+def _warn_if_stale(index: dict) -> None:
+    if index.get("stale"):
+        typer.secho(
+            f"The index was last synced {index['age_days']} days ago: recent items may be "
+            "missing. Run `graph-me sync`.",
+            fg=typer.colors.YELLOW,
+            err=True,
+        )
+
+
+def _index_age(c: Context, conn: db.sqlite3.Connection) -> dict:
+    from graph_me.service import freshness
+
+    return freshness(conn, c.config.index.stale_after_days)
 
 
 # -- set up -------------------------------------------------------------------------------------
@@ -338,7 +356,13 @@ def _run_pipeline(
         typer.echo(f"{name}: removed from config.yaml, forgot {_plural(count, 'item')}")
     for name, message in report.failures.items():
         typer.secho(f"{name}: kept. {message}", fg=typer.colors.RED, err=True)
+    if report.relinked:
+        typer.echo(f"corrections: rebuilt the people in {_plural(report.relinked, 'item')}")
+    for note in report.notes:
+        typer.secho(note, fg=typer.colors.YELLOW, err=True)
     for name, st in report.sources.items():
+        if name == "_overrides":
+            name = "corrections"
         if st.failure:
             message = st.failure.removeprefix(f"source {name!r}: ")
             typer.secho(f"{name}: skipped. {message}", fg=typer.colors.RED, err=True)
@@ -424,6 +448,7 @@ def query(
     if fmt == "markdown":
         typer.echo(pack.render_markdown(result), nl=False)
         return
+    _warn_if_stale(result["index"])
     if not result["answer_items"] and not result["facts"]:
         typer.echo(
             "No results. Try other words, another language, a person's name, or fewer filters."
@@ -505,11 +530,13 @@ def who(
     conn = _open_store(c)
     try:
         people = graph.who_is(conn, text, c.config.people)
+        index = _index_age(c, conn)
     finally:
         conn.close()
     if as_json:
         typer.echo(json.dumps(people, ensure_ascii=False, indent=2))
         return
+    _warn_if_stale(index)
     if not people:
         raise _error(f"Nobody matches {text!r}. Try an email, a phone number or another name.")
     for n, person in enumerate(people):
@@ -541,23 +568,204 @@ def fact(
         ),
     ],  # fmt: skip
     as_json: Annotated[bool, typer.Option("--json", help="Print JSON.")] = False,
+    set_value: Annotated[
+        str | None,
+        typer.Option("--set", metavar="VALUE", help="Correct it: graph-me will know VALUE."),
+    ] = None,
+    reject_value: Annotated[
+        str | None,
+        typer.Option("--reject", metavar="VALUE", help="Correct it: VALUE is wrong, drop it."),
+    ] = None,
 ) -> None:
-    """Show one fact about someone, with the files and messages it came from."""
+    """Show one fact about someone, with the files and messages it came from.
+
+    With --set or --reject, save a correction to overrides.yaml instead (applied on the next
+    sync). Example: graph-me fact Sophie birthday --reject 07-04
+    """
+    from graph_me import overrides as corrections
     from graph_me.query import graph
 
     c = _ctx(ctx)
+    if set_value is not None and reject_value is not None:
+        raise _error("Use --set or --reject, not both.")
+    if set_value is not None or reject_value is not None:
+        who_id = _identifier(c, who_text)
+
+        def change(fixes: corrections.Overrides) -> str:
+            if set_value is not None:
+                value = corrections.set_fact(fixes, who_id, key, set_value)
+                return f"{who_id}: {key.replace('_', ' ')} is {value}"
+            value = corrections.reject(fixes, who_id, key, reject_value)
+            return f"{who_id}: {key.replace('_', ' ')} is not {value}"
+
+        _correct(c, change)
+        return
     conn = _open_store(c)
     try:
         found = graph.get_fact(conn, who_text, key, c.config.people)
+        index = _index_age(c, conn)
     finally:
         conn.close()
     if as_json:
         typer.echo(json.dumps(found, ensure_ascii=False, indent=2))
         return
+    _warn_if_stale(index)
     if not found:
         raise _error(f"No {key.replace('_', ' ')} known for {who_text!r}.")
     for person in found:
         _echo_facts(person["entity"], person["facts"])
+
+
+# -- correct ------------------------------------------------------------------------------------
+
+_PEOPLE = typer.Argument(
+    metavar="PERSON...", help="Emails, phone numbers, or names that match exactly one person."
+)
+
+
+def _identifier(c: Context, text: str) -> str:
+    """An email or phone number for ``text``: itself, or that of the one person it names."""
+    from graph_me.connectors.base import Party
+    from graph_me.pipeline.tier0.people import PeopleContext
+    from graph_me.query import graph
+
+    people = PeopleContext.from_config(c.config.people)
+    if "@" in text or sum(ch.isdigit() for ch in text) >= 6:
+        if not people.keys(Party(email=text, phone=text)):
+            raise _error(f"{text!r} is not an email or phone number graph-me can read.")
+        return text.strip()
+    if not c.db_path.exists():
+        raise _error(f"No index to look {text!r} up in: give an email or phone number.")
+    conn = db.connect(c.db_path, readonly=True)
+    try:
+        found = [graph.entity(conn, e) for e in graph.find_people(conn, text, c.config.people)]
+    finally:
+        conn.close()
+    reachable = [
+        (person, [a["value"] for a in person["aliases"] if a["kind"] in ("email", "phone")])
+        for person in found
+    ]
+    reachable = [(person, ids) for person, ids in reachable if ids]
+    if not reachable:
+        raise _error(f"Nobody named {text!r} has an email or phone number. Give one instead.")
+    if len(reachable) > 1:
+        lines = [f"{text!r} matches several people. Give an email or phone number instead:"]
+        lines += [f"  {person['name'] or '?'}: {', '.join(ids)}" for person, ids in reachable]
+        raise _error("\n".join(lines))
+    _, ids = reachable[0]
+    return next((i for i in ids if "@" in i), ids[0])
+
+
+def _correct(c: Context, change) -> None:
+    """Apply ``change`` to overrides.yaml and save it."""
+    from pydantic import ValidationError
+
+    from graph_me import overrides as corrections
+
+    path = c.config.overrides
+    if path is None:
+        raise _error("Corrections are turned off (`overrides: null` in config.yaml).")
+    try:
+        fixes = corrections.load(path)
+        summary = change(fixes)
+        corrections.save(path, fixes)
+    except (ValueError, ValidationError) as exc:
+        message = exc.errors()[0]["msg"] if isinstance(exc, ValidationError) else str(exc)
+        raise _error(message.removeprefix("Value error, ")) from exc
+    typer.echo(summary)
+    typer.echo(f"Saved in {path}. Run `graph-me sync` to apply it.")
+
+
+@app.command(rich_help_panel=CORRECT)
+def link(ctx: typer.Context, people: Annotated[list[str], _PEOPLE]) -> None:
+    """Say these emails or phone numbers belong to one person.
+
+    Example: graph-me link sophie@work.example "+44 7700 900123"
+    """
+    from graph_me import overrides as corrections
+
+    c = _ctx(ctx)
+    if len(people) < 2:
+        raise _error("Give at least two people or identifiers to link.")
+    ids = list(dict.fromkeys(_identifier(c, p) for p in people))
+    if len(ids) < 2:
+        raise _error("These all name the same identifier: nothing to link.")
+
+    def change(fixes: corrections.Overrides) -> str:
+        corrections.link(fixes, ids)
+        return f"{' = '.join(ids)}: one person"
+
+    _correct(c, change)
+
+
+@app.command(rich_help_panel=CORRECT)
+def unlink(ctx: typer.Context, people: Annotated[list[str], _PEOPLE]) -> None:
+    """Say these emails or phone numbers belong to different people, even if a contact card
+    lists them together.
+
+    Example: graph-me unlink sophie@work.example sophie@home.example
+    """
+    from graph_me import overrides as corrections
+
+    c = _ctx(ctx)
+    ids = list(dict.fromkeys(_identifier(c, p) for p in people))
+    if len(ids) < 2:
+        raise _error("Give at least two different emails or phone numbers.")
+
+    def change(fixes: corrections.Overrides) -> str:
+        corrections.unlink(fixes, ids)
+        return f"{' / '.join(ids)}: different people"
+
+    _correct(c, change)
+
+
+@app.command(rich_help_panel=CORRECT)
+def relate(
+    ctx: typer.Context,
+    person: Annotated[str, typer.Argument(metavar="PERSON", help="An email, phone or name.")],
+    relation: Annotated[
+        str | None,
+        typer.Argument(metavar="RELATION", help="sibling, parent, spouse, landlord, ..."),
+    ] = None,
+    remove: Annotated[
+        bool, typer.Option("--remove", help="Forget the relation you set for them.")
+    ] = False,
+) -> None:
+    """Say how someone relates to you, so "my sister" or "my landlord" finds them.
+
+    Example: graph-me relate sophie@example.com sibling
+    """
+    from graph_me import overrides as corrections
+
+    c = _ctx(ctx)
+    if not remove and relation is None:
+        raise _error(f"Give a relation: {', '.join(corrections.relations())}.")
+    if relation is not None and relation not in corrections.relations():
+        raise _error(
+            f"Unknown relation {relation!r}. Use one of: {', '.join(corrections.relations())}."
+        )
+    who_id = _identifier(c, person)
+
+    def change(fixes: corrections.Overrides) -> str:
+        corrections.relate(fixes, who_id, None if remove else relation)
+        return f"{who_id}: no relation set" if remove else f"{who_id}: your {relation}"
+
+    _correct(c, change)
+
+
+@app.command("overrides", rich_help_panel=CORRECT)
+def show_overrides(ctx: typer.Context) -> None:
+    """Show your corrections (overrides.yaml) and where they are saved."""
+    c = _ctx(ctx)
+    path = c.config.overrides
+    if path is None:
+        typer.echo("Corrections are turned off (`overrides: null` in config.yaml).")
+        return
+    if not path.exists():
+        typer.echo(f"No corrections yet. They will be saved in {path}.")
+        return
+    typer.echo(f"# {path}")
+    typer.echo(path.read_text(encoding="utf-8"), nl=False)
 
 
 # -- AI enrichment ------------------------------------------------------------------------------

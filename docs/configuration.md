@@ -64,6 +64,37 @@ Reads `.vcf` address books (Google Contacts, iCloud and phone exports).
 graph-me treats two contacts as the same person only if they share an email or a phone number.
 Two "Sophie" stay two people.
 
+## Corrections
+
+`overrides.yaml`, next to `config.yaml`, holds your corrections. The `link`, `unlink`, `relate`
+and `fact --set/--reject` commands edit it (see [Commands](commands.md#correct)), and you can
+edit it by hand:
+
+```yaml
+people:
+  - who: sophie@example.com          # an email or phone number
+    same_as: ["+44 7700 900123"]     # the same person
+    relation: sibling                # how they relate to you
+    name: Sophie Martin
+    facts: {birthday: "03-12"}
+not_same:
+  - [sophie@work.example, sophie@example.com]
+reject:
+  - {who: sophie@example.com, fact: birthday, value: "07-04"}
+```
+
+| Key in `config.yaml` | Meaning |
+| --- | --- |
+| `overrides` | Where your corrections are saved. Default: `overrides.yaml` next to `config.yaml`. `null` turns corrections off. |
+
+If the file has an error, `scan` and `sync` say so and keep your previous corrections.
+
+## Index
+
+| Key | Meaning |
+| --- | --- |
+| `index.stale_after_days` | Answers say the index may be out of date when a source was last synced longer ago than this (default 7) |
+
 ## Blacklist
 
 | Key | Meaning |

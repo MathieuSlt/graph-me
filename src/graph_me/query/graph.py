@@ -88,7 +88,8 @@ def evidence(conn: sqlite3.Connection, *, fact_id: int | None = None,
         f"""SELECT i.*, {_ITEM_DATE} AS date, e.method
             FROM evidence e JOIN items i ON i.id = e.item_id
             WHERE e.{column} = ?
-            ORDER BY e.method LIKE 'contact:%' DESC, date DESC LIMIT ?""",
+            ORDER BY e.method LIKE 'user:%' DESC, e.method LIKE 'contact:%' DESC,
+                     date DESC LIMIT ?""",
         (value, limit),
     ).fetchall()
     return [{**_item(r), "method": r["method"]} for r in rows]

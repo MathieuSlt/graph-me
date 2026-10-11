@@ -27,6 +27,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 ENV_OUT = "GRAPH_ME_OUT"
 ENV_CONFIG = "GRAPH_ME_CONFIG"
 CONFIG_NAME = "config.yaml"
+OVERRIDES_NAME = "overrides.yaml"
 TEMPLATE_NAME = "config-template.yaml"
 OUT_NAME = "graph-out"
 DB_NAME = "graph.db"
@@ -102,10 +103,21 @@ class PeopleConfig(BaseModel):
         return value
 
 
+class IndexConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    # Answers say the index may be out of date when the oldest source was synced longer ago.
+    stale_after_days: int = Field(default=7, ge=1)
+
+
 class Config(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     output: Path | None = None
+    # Your corrections (graph-me link, relate, fact --set/--reject). Default: overrides.yaml
+    # next to config.yaml. None: no corrections are read.
+    overrides: Path | None = None
+    index: IndexConfig = Field(default_factory=IndexConfig)
     people: PeopleConfig = Field(default_factory=PeopleConfig)
     extraction: ExtractionConfig = Field(default_factory=ExtractionConfig)
     sources: dict[str, SourceConfig] = Field(default_factory=dict)
@@ -153,11 +165,19 @@ def template_text() -> str:
 
 
 def load_config(path: Path) -> Config:
-    """Load and validate ``config.yaml``. A missing file means all defaults."""
-    if not path.is_file():
-        return Config()
-    raw = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
-    return Config.model_validate(raw)
+    """Load and validate ``config.yaml``. A missing file means all defaults.
+
+    ``overrides`` defaults to ``overrides.yaml`` next to the config; a relative path is read
+    from the config's folder.
+    """
+    raw = {}
+    if path.is_file():
+        raw = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    cfg = Config.model_validate(raw)
+    folder = path.expanduser().parent
+    target = (cfg.overrides or Path(OVERRIDES_NAME)).expanduser()
+    cfg.overrides = target if target.is_absolute() else folder / target
+    return cfg
 
 
 def resolve_output(

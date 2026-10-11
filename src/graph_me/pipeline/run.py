@@ -22,11 +22,15 @@ from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 
-from graph_me.config import BlacklistConfig, Config
+import yaml
+
+from graph_me import overrides as corrections
+from graph_me.config import BlacklistConfig, Config, SourceConfig
 from graph_me.connectors import registry
 from graph_me.connectors.base import Connector, Item, Party, SourceUnavailable
 from graph_me.pipeline import chunk, lang, parse, sanitize
 from graph_me.pipeline.tier0 import entities, facts, people
+from graph_me.pipeline.tier0 import overrides as user
 from graph_me.store import db, forget
 
 BATCH = 500
@@ -139,6 +143,8 @@ class ScanReport:
     forgotten_blacklisted: int = 0  # stored items removed because the blacklist now covers them
     removed_sources: dict[str, int] = field(default_factory=dict)  # sync: source -> items forgotten
     failures: dict[str, str] = field(default_factory=dict)  # removed sources that were kept
+    relinked: int = 0  # items re-read because overrides.yaml changed who is who
+    notes: list[str] = field(default_factory=list)
 
     @property
     def ok(self) -> bool:
@@ -219,15 +225,26 @@ def _run(
 ) -> ScanReport:
     if only_source and only_source not in cfg.sources:
         raise ValueError(f"no source named {only_source!r} in config.yaml")
-    ctx = people.PeopleContext.from_config(cfg.people)
+    fixes = _load_overrides(cfg)  # None when invalid: its source then fails and keeps them
+    ctx = people.PeopleContext.from_config(cfg.people, fixes.not_same if fixes else ())
     report = ScanReport(forgotten_blacklisted=apply_blacklist(conn, cfg.blacklist, ctx))
+    if fixes is not None:
+        if not only_source:
+            report.relinked = user.apply_changes(conn, fixes, ctx)
+        elif user.changes_pending(conn, fixes, ctx):
+            report.notes.append(
+                "overrides.yaml changed who is who: run a scan or sync without --source to "
+                "apply it fully."
+            )
+    sources = _sources(conn, cfg)
     if forget_missing and not only_source:
-        _forget_removed_sources(conn, cfg, report, allow_mass_forget)
+        _forget_removed_sources(conn, sources, report, allow_mass_forget)
     blacklist = _Blacklist(cfg.blacklist, ctx)
     workers_ = _Workers(workers if workers is not None else default_workers())
     try:
-        for name, source in cfg.sources.items():
-            if only_source and name != only_source:
+        for name, source in sources.items():
+            # Corrections are tiny and apply to every source: read them on every run.
+            if only_source and name not in (only_source, corrections.SOURCE):
                 continue
             connector = registry.create(name, source, cfg.blacklist)
             conn.execute(
@@ -257,9 +274,27 @@ def _run(
         workers_.close()
     _save_last_run(conn, report, "sync" if forget_missing else "scan")
     # Re-processed, forgotten or blacklisted items may have left entities, facts or relations.
-    finish(conn)
+    finish(conn, user.rejections(fixes, ctx) if fixes else ())
     db.compact(conn)
     return report
+
+
+def _load_overrides(cfg: Config) -> corrections.Overrides | None:
+    if cfg.overrides is None:
+        return corrections.Overrides()
+    try:
+        return corrections.load(cfg.overrides)
+    except (OSError, ValueError, yaml.YAMLError):  # the _overrides source reports it
+        return None
+
+
+def _sources(conn: sqlite3.Connection, cfg: Config) -> dict[str, SourceConfig]:
+    """config.yaml sources, plus ``_overrides`` when overrides.yaml exists or did exist."""
+    sources = dict(cfg.sources)
+    known = conn.execute("SELECT 1 FROM sources WHERE id = ?", (corrections.SOURCE,)).fetchone()
+    if cfg.overrides is not None and (cfg.overrides.exists() or known):
+        sources[corrections.SOURCE] = SourceConfig(type="overrides", path=str(cfg.overrides))
+    return sources
 
 
 def _save_last_run(conn: sqlite3.Connection, report: ScanReport, mode: str) -> None:
@@ -281,11 +316,14 @@ def _save_last_run(conn: sqlite3.Connection, report: ScanReport, mode: str) -> N
 
 
 def _forget_removed_sources(
-    conn: sqlite3.Connection, cfg: Config, report: ScanReport, allow_mass_forget: bool
+    conn: sqlite3.Connection,
+    sources: dict[str, SourceConfig],
+    report: ScanReport,
+    allow_mass_forget: bool,
 ) -> None:
     """Sources removed from config.yaml: forget their items (guarded like any mass forget)."""
     for (name,) in conn.execute("SELECT id FROM sources").fetchall():
-        if name in cfg.sources:
+        if name in sources:
             continue
         ids = [r[0] for r in conn.execute("SELECT id FROM items WHERE source_id = ?", (name,))]
         if len(ids) > MASS_FORGET_MIN and not allow_mass_forget:
@@ -298,8 +336,11 @@ def _forget_removed_sources(
         conn.commit()
 
 
-def finish(conn: sqlite3.Connection) -> None:
-    """Whole-graph steps after items changed: orphans, relation weights, fact confidence."""
+def finish(conn: sqlite3.Connection, rejected=()) -> None:
+    """Whole-graph steps after items changed: rejected facts, orphans, relation weights,
+    fact confidence. ``rejected``: overrides.yaml ``reject`` entries (see tier0/overrides.py).
+    """
+    user.apply_rejections(conn, rejected)
     forget.cleanup_orphans(conn)
     conn.execute(
         """UPDATE relations SET weight =
