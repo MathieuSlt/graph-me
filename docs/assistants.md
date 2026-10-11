@@ -32,6 +32,7 @@ Other MCP clients work the same way: point them at the command `graph-me mcp`, w
 | `timeline` | Lists a person's items in date order |
 | `related` | Lists the people and projects linked to someone |
 | `get_item` | Returns the full text of one file or message |
+| `upcoming` | Lists birthdays, anniversaries and deadlines (expires, renews, due, ends) coming up |
 | `status` | Shows the sources, item counts and last sync |
 
 All tools are read-only. Secrets stay redacted in every answer, and there is no option to reveal

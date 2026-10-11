@@ -443,7 +443,7 @@ answers, wrong answers, life admin, trust and control):
 | --- | --- | --- | --- |
 | M7 · Correct answers | 0.2 | `overrides.yaml` (link, unlink, relate, set and reject facts) as the `_overrides` source; index freshness in every answer | done |
 | M8 · First run | 0.2 | `init --detect`, `scan --since`, `doctor`, `install-mcp --client`, `schedule` (launchd / systemd user unit) with a run lock, `graph-me demo` | done |
-| M9 · Upcoming | 0.3 | Tier 0 deadline and amount rules, more vCard fields, `upcoming` (CLI, MCP, UI, REPORT.md), `.ics` export | |
+| M9 · Upcoming | 0.3 | Tier 0 deadline and amount rules, more vCard fields, `upcoming` (CLI, MCP, UI, REPORT.md), `.ics` export | done |
 | M10 · Control | 0.3 | Agent activity log (`graph-me log`, UI page), profiles that scope MCP and the UI to some sources | |
 | M11 · More data | 0.4 | `[ocr]` extra (RapidOCR) for scanned PDFs, `ics` calendar connector, `last_contact`, threads and topic timelines, `.enex`, CSV headers in chunks | |
 | M12 · Ecosystem | 0.5 | `export bundle`, connector contract kit and example plugin, rule-pack kit with examples and user packs | |

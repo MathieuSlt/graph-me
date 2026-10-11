@@ -27,6 +27,7 @@ contacts, then answers with the file or message it found, its date and its sourc
 - "Where is the lease PDF my landlord emailed me?"
 - "When is my sister's birthday?"
 - "What did the plumber quote last spring?"
+- "What expires or renews in the next two months?"
 
 What it promises:
 
@@ -76,7 +77,7 @@ You also get these files:
 ├── config.yaml       your sources, people settings and blacklist
 └── graph-out/        readable only by you
     ├── graph.db      the index: one SQLite file
-    ├── REPORT.md     what was indexed, the people you deal with most, upcoming birthdays, questions to ask
+    ├── REPORT.md     what was indexed, the people you deal with most, what's coming up, questions to ask
     └── graph.json    the graph, for other tools
 ```
 
@@ -94,7 +95,9 @@ Don't have uv? `curl -LsSf https://astral.sh/uv/install.sh | sh`. More in
 | Contacts | Address books exported as `.vcf` files, or contacts synced by msgvault |
 
 From all that, graph-me builds a small graph: the people you deal with (merged across email,
-phone and chats), your folders and projects, and facts such as birthdays. Two contacts are the
+phone and chats), your folders and projects, and facts such as birthdays, addresses, and
+deadlines read in your documents (a lease that ends, a policy that renews, a bill that is due).
+Two contacts are the
 same person only if they share an email or a phone number, so two "Sophie" stay two people.
 
 graph-me doesn't read images, audio, or scanned PDFs without a text layer.
@@ -110,8 +113,8 @@ graph-me doesn't read images, audio, or scanned PDFs without a text layer.
 | **Web UI** | `graph-me ui`: search, a graph explorer, person pages with the evidence behind every fact | `graph-me[ui]` |
 | **Other agents** | `graph-me query "..." --format markdown` or `--format json` | the base install |
 
-The MCP server offers eight read-only tools: `search`, `find_document`, `who_is`, `get_fact`,
-`timeline`, `related`, `get_item` and `status`. See
+The MCP server offers nine read-only tools: `search`, `find_document`, `who_is`, `get_fact`,
+`timeline`, `related`, `upcoming`, `get_item` and `status`. See
 [Use it from your AI assistant](https://mathieuslt.github.io/graph-me/assistants/).
 
 ---
@@ -156,6 +159,8 @@ More in [Better results with AI](https://mathieuslt.github.io/graph-me/tier1/).
 | `graph-me query "<words>"` | Searches everything |
 | `graph-me who "<person>"` | Shows a person's identifiers, facts and closest contacts |
 | `graph-me fact <person> <fact>` | Shows one fact and where it came from |
+| `graph-me upcoming` | Lists birthdays and deadlines coming up |
+| `graph-me export ics` | Writes them as a calendar file |
 | `graph-me link` / `unlink` / `relate` | Corrects who is who and how people relate to you (saved in `overrides.yaml`) |
 | `graph-me fact <person> <fact> --set/--reject <value>` | Corrects a fact |
 | `graph-me enrich` / `ingest` | Runs Tier 1 labelling and merges agent answers |
@@ -187,7 +192,7 @@ More in [Privacy and safety](https://mathieuslt.github.io/graph-me/privacy/).
 ## Limits
 
 - Without Tier 1, search matches words, not meaning.
-- Birthday rules exist for English and French messages only.
+- Birthday, deadline and amount rules exist for English and French only.
 - No OCR: scanned PDFs and photos are skipped.
 - Linux and macOS only for now.
 - `sync` runs when you run it, or on a schedule you install (`graph-me schedule install`).

@@ -1,6 +1,7 @@
 """Tier 0 facts from rules (no model). Every fact is cited by the item it came from.
 
-- Contact cards: birthday (and birth year), nicknames, organization. Confidence 0.95.
+- Contact cards: birthday (and birth year), nicknames, organization, job title, postal
+  addresses, anniversary. Confidence 0.95.
 - Your corrections (overrides.yaml, method ``user:*``): confidence 1.0.
 - Birthday greetings: a message to exactly one person whose opening words contain a greeting
   from a rule pack ("happy birthday", "happy bday"...) suggests that person's birthday on the
@@ -66,6 +67,13 @@ def contact_facts(conn: sqlite3.Connection, item_id: str, pid: str, c: Contact) 
         )
     if c.org:
         upsert_fact(conn, pid, "organization", c.org, CONTACT_CONFIDENCE, item_id, "contact:org")
+    if c.title:
+        upsert_fact(conn, pid, "job_title", c.title, CONTACT_CONFIDENCE, item_id, "contact:title")
+    for address in c.addresses:
+        upsert_fact(conn, pid, "address", address, CONTACT_CONFIDENCE, item_id, "contact:adr")
+    if c.anniversary:
+        upsert_fact(conn, pid, "anniversary", c.anniversary[-5:], CONTACT_CONFIDENCE, item_id,
+                    "contact:anniversary")  # fmt: skip
 
 
 @cache

@@ -32,6 +32,9 @@ class Contact(BaseModel):
     phones: list[str] = Field(default_factory=list)
     birthday: str | None = None  # "MM-DD" or "YYYY-MM-DD"
     org: str | None = None
+    title: str | None = None  # job title
+    addresses: list[str] = Field(default_factory=list)  # postal, one line each
+    anniversary: str | None = None  # "MM-DD" or "YYYY-MM-DD"
     note: str | None = None
 
 

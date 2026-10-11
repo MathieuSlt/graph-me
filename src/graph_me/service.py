@@ -163,6 +163,26 @@ class Service:
             self._log(conn, f"timeline:{who}", people)
         return {"query": who, "notice": pack.NOTICE, "results": out, "index": index}
 
+    def upcoming(self, *, days: int = 60, kind: str | None = None, today=None) -> dict:
+        """Birthdays, anniversaries and deadlines (expires, renews, due, ends) coming up."""
+        from datetime import date
+
+        today = today or date.today()
+        kinds = None
+        if kind:
+            kinds = graph.ANNUAL_KEYS if kind == "dates" else (
+                graph.DEADLINE_KEYS if kind == "deadlines" else (kind,))  # fmt: skip
+        with self._conn() as conn:
+            found = graph.upcoming(conn, today, days=days, kinds=kinds)
+            index = self._freshness(conn)
+            self._log(conn, f"upcoming:{days}:{kind or ''}", [u["entity"]["id"] for u in found])
+        for u in found:
+            u["entity"]["name"] = _redact_name(u["entity"]["name"])
+            for ev in u["evidence"]:
+                ev["title"] = _redact_name(ev["title"])
+        return {"query": f"upcoming {days} days", "notice": pack.NOTICE, "today": today.isoformat(),
+                "results": found, "index": index}  # fmt: skip
+
     def get_item(self, item_id: str, *, reveal: bool = False) -> dict:
         """One item's full text (redacted, trust-tagged, capped at ITEM_MAX_WORDS)."""
         with self._conn() as conn:

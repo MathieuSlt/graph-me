@@ -23,6 +23,7 @@
     </p>
     {% if it.path %}<p class="path small"><code>{{ it.path }}</code></p>{% endif %}
     <p class="snippet">{{ it.snippet|squeeze }}</p>
+    {% if it.get("values") %}<p class="small">📅 {% for v in it["values"] %}{{ v.key|replace("_", " ") }}: <strong>{{ v.value }}</strong>{% if not loop.last %} · {% endif %}{% endfor %}</p>{% endif %}
     {% for o in it.get("origin", []) %}
       <p class="small">📎 came with <a href="/item/{{ o.id }}">{{ o.title or "(no subject)" }}</a>{% if o.get("from") %} from {{ o.from }}{% endif %}, {{ date(o.date) }}</p>
     {% endfor %}

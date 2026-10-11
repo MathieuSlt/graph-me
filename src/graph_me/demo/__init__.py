@@ -6,6 +6,7 @@ writes documents, an address book, a correction and a ``config.yaml`` under ``ro
 
 from __future__ import annotations
 
+from datetime import date, timedelta
 from pathlib import Path
 
 import yaml
@@ -20,7 +21,10 @@ QUESTIONS = (
     ("who", "Sam Rivera"),
     ("query", "plumber quote"),
     ("query", "renews"),
+    ("upcoming",),
 )
+RENEWAL_IN_DAYS = 40  # so `graph-me upcoming` has something to show on the day you build it
+BIRTHDAY_IN_DAYS = 20
 
 LEASE = [
     "RESIDENTIAL LEASE AGREEMENT",
@@ -48,7 +52,7 @@ FN:Alex Taylor
 NICKNAME:Lexi
 EMAIL:alex.taylor@example.com
 TEL:+1 202 555 0101
-BDAY:1994-03-12
+BDAY:1994-{birthday}
 END:VCARD
 BEGIN:VCARD
 VERSION:3.0
@@ -101,8 +105,14 @@ billing@unknown.example. This is urgent.
 """
 
 
-def build(root: Path) -> Path:
-    """Write the demo under ``root`` and return its ``config.yaml``."""
+def build(root: Path, today: date | None = None) -> Path:
+    """Write the demo under ``root`` and return its ``config.yaml``.
+
+    The car insurance renewal and Alex's birthday fall a few weeks after ``today``.
+    """
+    today = today or date.today()
+    renewal = today + timedelta(days=RENEWAL_IN_DAYS)
+    birthday = today + timedelta(days=BIRTHDAY_IN_DAYS)
     root.mkdir(parents=True, exist_ok=True)
     docs, downloads = root / "Documents", root / "Downloads"
 
@@ -117,7 +127,7 @@ def build(root: Path) -> Path:
             [
                 "Vehicle policy renewal notice",
                 "Policy holder: Jordan Taylor. Vehicle: 2019 hatchback.",
-                "Your car insurance policy renews on January 15, 2027.",
+                f"Your car insurance policy renews on {renewal:%B} {renewal.day}, {renewal.year}.",
                 "Annual premium: 712 dollars.",
             ]
         ),
@@ -134,7 +144,7 @@ def build(root: Path) -> Path:
         "# Trip ideas\n\n- Lisbon in May with Alex\n- Hiking weekend in the fall\n",
     )
     write(downloads / "invoice_8812.txt", SUSPICIOUS)
-    write(root / "contacts.vcf", CONTACTS)
+    write(root / "contacts.vcf", CONTACTS.replace("{birthday}", f"{birthday:%m-%d}"))
     write(
         root / "overrides.yaml",
         yaml.safe_dump({"people": [{"who": "alex.taylor@example.com", "relation": "sibling"}]}),

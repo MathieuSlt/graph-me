@@ -595,6 +595,8 @@ def _run_pipeline(
 
     try:
         report_path, _ = report_mod.write(conn, c.out)
+        if c.config.export.ics:
+            _write_ics(conn, c.out / "upcoming.ics")
     finally:
         conn.close()
 
@@ -605,6 +607,8 @@ def _run_pipeline(
         typer.echo(f"{name}: removed from config.yaml, forgot {_plural(count, 'item')}")
     for name, message in report.failures.items():
         typer.secho(f"{name}: kept. {message}", fg=typer.colors.RED, err=True)
+    if report.backfilled:
+        typer.echo(f"new rules: read {_plural(report.backfilled, 'stored item')} again")
     if report.relinked:
         typer.echo(f"corrections: rebuilt the people in {_plural(report.relinked, 'item')}")
     for note in report.notes:
@@ -715,6 +719,9 @@ def query(
             to = ", ".join(item.get("to") or []) or "?"
             typer.echo(f"   from {item['from']} to {to}")
         typer.echo(f"   {' '.join(item['snippet'].split())}")
+        if item.get("values"):
+            found = ", ".join(f"{v['key'].replace('_', ' ')} {v['value']}" for v in item["values"])
+            typer.echo(f"   read in it: {found}")
         for origin in item.get("origin", []):
             sender = f" from {origin['from']}" if origin.get("from") else ""
             typer.echo(f'   came with the email "{origin["title"]}"{sender}, {_date(origin)}')
@@ -863,6 +870,78 @@ def fact(
         raise _error(f"No {key.replace('_', ' ')} known for {who_text!r}.")
     for person in found:
         _echo_facts(person["entity"], person["facts"])
+
+
+@app.command(rich_help_panel=ASK)
+def upcoming(
+    ctx: typer.Context,
+    days: Annotated[int, typer.Option(metavar="N", min=1, max=366, help="How far ahead.")] = 60,
+    kind: Annotated[
+        str | None,
+        typer.Option(
+            metavar="KIND",
+            help="dates (birthdays, anniversaries), deadlines (expires, renews, due, ends), "
+            "or one of those keys.",
+        ),
+    ] = None,
+    as_json: Annotated[bool, typer.Option("--json", help="Print JSON.")] = False,
+) -> None:
+    """What is coming up: birthdays, anniversaries, and deadlines read in your documents."""
+    c = _ctx(ctx)
+    _require_index(c)
+    result = _service(c).upcoming(days=days, kind=kind)
+    if as_json:
+        typer.echo(json.dumps(result, ensure_ascii=False, indent=2))
+        return
+    _warn_if_stale(result["index"])
+    if not result["results"]:
+        typer.echo(f"Nothing in the next {_plural(days, 'day')}.")
+        return
+    for u in result["results"]:
+        when = date.fromisoformat(u["date"])
+        soon = "today" if u["in_days"] == 0 else f"in {_plural(u['in_days'], 'day')}"
+        name = u["entity"]["name"] or "(unnamed)"
+        low = typer.style(" low", fg=typer.colors.YELLOW) if u["confidence"] < 0.8 else ""
+        typer.secho(f"{when:%a %d %b %Y}  {name}: {u['key']}", bold=True, nl=False)
+        typer.echo(f"  ({soon}, {u['confidence']:.0%} sure{low})")
+        for ev in u["evidence"][:2]:
+            where = " · ".join(x for x in (ev["title"], _date(ev), ev["uri"]) if x)
+            typer.echo(typer.style(f"      from {where}", dim=True))
+
+
+def _write_ics(conn: db.sqlite3.Connection, path: Path) -> Path:
+    from graph_me.export import ics
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(ics.build(conn), encoding="utf-8", newline="")
+    return path
+
+
+export_app = typer.Typer(help="Write files for other tools (a calendar of what is coming up).",
+                         no_args_is_help=True)  # fmt: skip
+app.add_typer(export_app, name="export", rich_help_panel=ASK)
+
+
+@export_app.command("ics")
+def export_ics(
+    ctx: typer.Context,
+    out: Annotated[
+        Path | None,
+        typer.Option("--out", metavar="FILE", help="Default: graph-out/upcoming.ics."),
+    ] = None,
+) -> None:
+    """Write birthdays, anniversaries and deadlines as a calendar (.ics) file.
+
+    Set `export: {ics: true}` in config.yaml to rewrite it after every scan and sync.
+    """
+    c = _ctx(ctx)
+    conn = _open_store(c)
+    try:
+        path = _write_ics(conn, (out or c.out / "upcoming.ics").expanduser())
+    finally:
+        conn.close()
+    typer.echo(f"wrote   {path}")
+    typer.echo("Import it in your calendar app, or subscribe to the file to keep it updated.")
 
 
 # -- correct ------------------------------------------------------------------------------------

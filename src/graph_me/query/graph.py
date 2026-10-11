@@ -246,15 +246,27 @@ def saved_copies(conn: sqlite3.Connection, item_id: str) -> list[dict]:
 
 
 def enrich_hits(conn: sqlite3.Connection, item_ids: list[str]) -> dict[str, dict]:
-    """Extra context per search hit: where a file came from, where attachments were saved."""
+    """Extra context per search hit: where a file came from, where attachments were saved,
+    and the deadlines and amounts read in it."""
     extras: dict[str, dict] = {}
     for iid in item_ids:
         kind = conn.execute("SELECT kind FROM items WHERE id = ?", (iid,)).fetchone()
         if not kind:
             continue
+        values = [
+            {"key": r[0], "value": r[1]}
+            for r in conn.execute(
+                f"""SELECT DISTINCT f.key, f.value FROM evidence ev JOIN facts f
+                    ON f.id = ev.fact_id WHERE ev.item_id = ?
+                    AND f.key IN ({",".join("?" * len(VALUE_KEYS))}) ORDER BY f.key, f.value""",
+                (iid, *VALUE_KEYS),
+            )
+        ]
+        if values:
+            extras[iid] = {"values": values}
         if kind[0] == "file":
             if found := origins(conn, iid):
-                extras[iid] = {"origin": found}
+                extras.setdefault(iid, {})["origin"] = found
         else:
             people = _people_of(conn, iid)
             extra: dict = {k: v for k, v in people.items() if v}
@@ -269,7 +281,7 @@ def enrich_hits(conn: sqlite3.Connection, item_ids: list[str]) -> dict[str, dict
             if copies := saved_copies(conn, iid):
                 extra["saved_as"] = copies
             if extra:
-                extras[iid] = extra
+                extras.setdefault(iid, {}).update(extra)
     return extras
 
 
@@ -422,3 +434,77 @@ def item_facts(conn: sqlite3.Connection, item_id: str) -> list[dict]:
         }
         for r in rows
     ]
+
+
+ANNUAL_KEYS = ("birthday", "anniversary")  # MM-DD, every year
+DEADLINE_KEYS = ("expires", "renews", "due", "ends")  # YYYY-MM-DD, once
+VALUE_KEYS = (*DEADLINE_KEYS, "quote_amount", "invoice_amount")  # read in documents
+
+
+def dated_facts(conn: sqlite3.Connection, kinds: tuple[str, ...] | None = None) -> list[dict]:
+    """Every birthday, anniversary and deadline, with its entity (for upcoming and .ics)."""
+    keys = [k for k in (*ANNUAL_KEYS, *DEADLINE_KEYS) if kinds is None or k in kinds]
+    if not keys:
+        return []
+    rows = conn.execute(
+        f"""SELECT f.id, f.key, f.value, f.confidence, e.id AS eid, e.kind, e.name
+            FROM facts f JOIN entities e ON e.id = f.entity_id
+            WHERE f.key IN ({",".join("?" * len(keys))})""",
+        keys,
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def next_date(key: str, value: str, today):
+    """When a dated fact next happens on or after ``today`` (None: past or unreadable)."""
+    from datetime import date
+
+    try:
+        if key in ANNUAL_KEYS:
+            month, day = (int(x) for x in value[-5:].split("-"))
+            for year in range(today.year, today.year + 5):  # 29 February: next leap year
+                try:
+                    when = date(year, month, day)
+                except ValueError:
+                    continue
+                if when >= today:
+                    return when
+            return None
+        when = date.fromisoformat(value)
+    except ValueError:
+        return None
+    return when if when >= today else None
+
+
+def upcoming(
+    conn: sqlite3.Connection, today, days: int = 60, kinds: tuple[str, ...] | None = None
+) -> list[dict]:
+    """Birthdays, anniversaries and deadlines from ``today`` to ``today + days``, soonest first."""
+    from datetime import timedelta
+
+    out = []
+    for fact in dated_facts(conn, kinds):
+        when = next_date(fact["key"], fact["value"], today)
+        if when is None or when > today + timedelta(days=days):
+            continue
+        out.append(
+            {
+                "date": when.isoformat(),
+                "in_days": (when - today).days,
+                "key": fact["key"],
+                "value": fact["value"],
+                "confidence": round(fact["confidence"], 2),
+                "entity": {"id": fact["eid"], "kind": fact["kind"], "name": fact["name"]},
+                "evidence": evidence(conn, fact_id=fact["id"], limit=3),
+            }
+        )
+    out.sort(key=lambda u: (u["date"], -u["confidence"], u["entity"]["name"] or ""))
+    # One line per thing: the same birthday from two people records, or a deadline on a file
+    # and on the email it came with, keep the surest.
+    seen, unique = set(), []
+    for u in out:
+        mark = (u["date"], u["key"], u["entity"]["id"])
+        if mark not in seen:
+            seen.add(mark)
+            unique.append(u)
+    return unique

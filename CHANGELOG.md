@@ -11,6 +11,13 @@ before 1.0, minor versions may break the config or the store.
   says how someone relates to you (so "my sister's birthday" works without Tier 1), and
   `fact --set/--reject` fixes a fact. Corrections are cited as "set by you" and removing one
   undoes it. `graph-me overrides` shows them.
+- **What's coming up**: `graph-me upcoming`, the `upcoming` MCP tool and a "Coming up" UI page
+  list birthdays, anniversaries and deadlines read in your documents and messages (when
+  something expires, renews, is due or ends). REPORT.md lists them too. `graph-me export ics`
+  (or `export: {ics: true}`) writes them as a calendar file.
+- **Deadlines and amounts** are read by English and French rules, without AI, and shown with
+  search results. Contact cards also give addresses, anniversaries and job titles. An existing
+  index gets the new rules on the next scan, without reading your files again.
 - **Easier first run**: `graph-me init --detect` finds your folders, Obsidian vaults,
   msgvault and address books and asks which to index; `graph-me scan --since 90d` reads recent
   items first; `graph-me demo` tries graph-me on made-up data; `graph-me doctor` checks the

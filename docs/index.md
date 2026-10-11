@@ -5,6 +5,7 @@ assistant can ask questions about them:
 
 - "Where is the lease PDF my landlord emailed me?"
 - "When is my sister's birthday?"
+- "What expires or renews in the next two months?"
 - "What did the plumber quote last spring?"
 
 The answer gives you a file path or a message, with its date and source, so you can check it.

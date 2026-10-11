@@ -110,6 +110,14 @@ class IndexConfig(BaseModel):
     stale_after_days: int = Field(default=7, ge=1)
 
 
+class ExportConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    # Rewrite graph-out/upcoming.ics (birthdays, anniversaries, deadlines) after every scan
+    # and sync, for a calendar app to subscribe to.
+    ics: bool = False
+
+
 class Config(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -118,6 +126,7 @@ class Config(BaseModel):
     # next to config.yaml. None: no corrections are read.
     overrides: Path | None = None
     index: IndexConfig = Field(default_factory=IndexConfig)
+    export: ExportConfig = Field(default_factory=ExportConfig)
     people: PeopleConfig = Field(default_factory=PeopleConfig)
     extraction: ExtractionConfig = Field(default_factory=ExtractionConfig)
     sources: dict[str, SourceConfig] = Field(default_factory=dict)

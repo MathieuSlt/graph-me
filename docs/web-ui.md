@@ -12,6 +12,8 @@ This opens a page in your browser with four parts:
   to open its page.
 - **Person and project pages** with identifiers, facts, relations and recent items. Each fact
   has a "Why do I know this?" list of the files and messages behind it.
+- **Coming up**: birthdays, anniversaries and deadlines read in your documents, with where each
+  one came from.
 - **Status** of your sources, the last runs, the blacklist, and items flagged as suspicious.
 
 !!! warning "Don't share the address"
