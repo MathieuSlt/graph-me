@@ -16,7 +16,7 @@ You can use it from [Claude Code](https://claude.com/claude-code) or any app tha
 ("use graph-me: where is my lease?"), from the terminal, or in a small web page on your machine.
 
 !!! note "Alpha software"
-    graph-me is at version 0.1.0. It runs on Linux and macOS. See the [changelog](changelog.md)
+    graph-me is at version 0.2.0. It runs on Linux and macOS. See the [changelog](changelog.md)
     for what changed.
 
 ## What it reads
