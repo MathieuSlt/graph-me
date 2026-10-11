@@ -134,6 +134,13 @@ def _index(path: Path, cfg: config.Config) -> list[Check]:
         items = conn.execute("SELECT count(*) FROM items").fetchone()[0]
         index = freshness(conn, cfg.index.stale_after_days)
         last_run = json.loads(db.get_meta(conn, "last_run") or "null") or {}
+        unseen = 0
+        if cfg.profiles and version >= 5:
+            unseen = conn.execute(
+                """SELECT count(*) FROM aliases a WHERE a.kind IN ('email', 'phone', 'handle')
+                   AND NOT EXISTS (SELECT 1 FROM item_identifiers s
+                                   WHERE s.kind = a.kind AND s.value = a.value)"""
+            ).fetchone()[0]
     finally:
         conn.close()
     checks = []
@@ -149,6 +156,13 @@ def _index(path: Path, cfg: config.Config) -> list[Check]:
                             "Run `graph-me sync`, or `graph-me schedule install`."))  # fmt: skip
     elif index["last_sync_at"]:
         checks.append(Check(OK, "freshness", f"last synced {index['last_sync_at']}"))
+    if cfg.profiles:
+        if unseen:
+            checks.append(Check(WARN, "profiles", f"{unseen} emails or phone numbers were indexed "
+                                "before profiles could tell where they came from, so profiles "
+                                "hide them", "Run `graph-me scan --reread` once."))  # fmt: skip
+        else:
+            checks.append(Check(OK, "profiles", ", ".join(sorted(cfg.profiles))))
     for name, stats in (last_run.get("sources") or {}).items():
         if stats.get("failure"):
             checks.append(Check(WARN, f"last run: {name}", stats["failure"].splitlines()[0]))

@@ -24,7 +24,7 @@ class Plan:
     name: str
     command: list[str]  # the MCP server command line
     path: Path | None = None  # config file to edit; None for claude-code
-    before: str = ""
+    before: str = ""  # never printed: other servers' settings may hold secrets
     after: str = ""
     run: list[str] | None = None  # a command to run instead of editing a file
     already: bool = False  # the same entry is already there
@@ -38,8 +38,9 @@ def executable() -> str:
     return str(Path(sys.argv[0]).resolve())
 
 
-def server_command(config_file: Path) -> list[str]:
-    return [executable(), "--config", str(config_file.expanduser().resolve()), "mcp"]
+def server_command(config_file: Path, profile: str | None = None) -> list[str]:
+    command = [executable(), "--config", str(config_file.expanduser().resolve()), "mcp"]
+    return [*command, "--profile", profile] if profile else command
 
 
 def config_path(client: str, home: Path, platform: str = sys.platform) -> Path | None:
@@ -54,13 +55,19 @@ def config_path(client: str, home: Path, platform: str = sys.platform) -> Path |
     return None
 
 
-def plan(client: str, name: str, config_file: Path, home: Path | None = None) -> Plan:
+def plan(
+    client: str,
+    name: str,
+    config_file: Path,
+    home: Path | None = None,
+    profile: str | None = None,
+) -> Plan:
     if client not in CLIENTS:
         raise ValueError(f"unknown app {client!r} (known: {', '.join(CLIENTS)})")
     if not re.fullmatch(r"[A-Za-z0-9_-]+", name):
         raise ValueError(f"--name {name!r}: use letters, digits, - and _ only")
     home = (home or Path.home()).expanduser()
-    command = server_command(config_file)
+    command = server_command(config_file, profile)
     if client == "claude-code":
         run = ["claude", "mcp", "add", "--scope", "user", name, "--", *command]
         return Plan(client, name, command, run=run)
@@ -71,6 +78,15 @@ def plan(client: str, name: str, config_file: Path, home: Path | None = None) ->
     else:
         after, already = _json(before, name, command, path)
     return Plan(client, name, command, path=path, before=before, after=after, already=already)
+
+
+def snippet(p: Plan) -> str:
+    """The entry graph-me adds, as it will appear in the app's config (nothing else)."""
+    if p.client == "codex":
+        return (f"[mcp_servers.{p.name}]\ncommand = {json.dumps(p.command[0])}\n"
+                f"args = {json.dumps(p.command[1:])}")  # fmt: skip
+    entry = {"mcpServers": {p.name: {"command": p.command[0], "args": p.command[1:]}}}
+    return json.dumps(entry, indent=2, ensure_ascii=False)
 
 
 def apply(p: Plan) -> None:

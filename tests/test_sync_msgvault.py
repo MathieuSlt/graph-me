@@ -14,14 +14,24 @@ pytestmark = needs_msgvault
 
 
 def msgvault(home, *args):
-    try:
-        subprocess.run(
-            ["msgvault", "--home", str(home), "--no-log-file", *args],
-            check=True, capture_output=True, text=True, timeout=300,
-        )  # fmt: skip
-    finally:
-        subprocess.run(["msgvault", "--home", str(home), "--no-log-file", "daemon", "stop"],
-                       capture_output=True, timeout=60)  # fmt: skip
+    """Run a msgvault command on the fixture, then stop the daemon it starts.
+
+    msgvault runs commands through a background daemon that also builds its analytics right
+    after starting, so a command can now and then find the database busy. It gets one retry;
+    a second failure reports msgvault's own message.
+    """
+    command = ["msgvault", "--home", str(home), "--no-log-file", *args]
+    stop = ["msgvault", "--home", str(home), "--no-log-file", "daemon", "stop"]
+    for attempt in (1, 2):
+        try:
+            result = subprocess.run(command, capture_output=True, text=True, timeout=300)
+        finally:
+            subprocess.run(stop, capture_output=True, timeout=60)
+        if result.returncode == 0:
+            return
+        if attempt == 2:
+            output = (result.stderr or result.stdout or "").strip()[-2000:]
+            raise AssertionError(f"`msgvault {' '.join(args)}` failed twice:\n{output}")
 
 
 def mark_deleted_at_source(home, subject):

@@ -18,6 +18,7 @@
       <a href="/" {% if request.url.path in ("/", "/search") %}aria-current="page"{% endif %}>Search</a>
       <a href="/graph" {% if request.url.path == "/graph" %}aria-current="page"{% endif %}>Graph</a>
       <a href="/upcoming" {% if request.url.path == "/upcoming" %}aria-current="page"{% endif %}>Coming up</a>
+      <a href="/activity" {% if request.url.path == "/activity" %}aria-current="page"{% endif %}>Activity</a>
       <a href="/status" {% if request.url.path == "/status" %}aria-current="page"{% endif %}>Status</a>
     </nav>
     <span class="muted small">read-only · v{{ version }}</span>

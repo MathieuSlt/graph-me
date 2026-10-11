@@ -166,12 +166,17 @@ def test_install_mcp_claude_code_uses_its_cli(tmp_path):
     assert p.run[-1] == "mcp"
 
 
-def test_install_mcp_print_changes_nothing(tmp_path, monkeypatch):
+def test_install_mcp_print_changes_nothing_and_shows_no_secrets(tmp_path, monkeypatch):
     monkeypatch.setenv("HOME", str(tmp_path))
+    path = tmp_path / ".cursor/mcp.json"
+    path.parent.mkdir()
+    other = {"mcpServers": {"other": {"command": "x", "headers": {"TOKEN": "s3cr3t-token"}}}}
+    path.write_text(json.dumps(other))
     result = runner.invoke(app, ["install-mcp", "--client", "cursor", "--print"])
     assert result.exit_code == 0, result.output
-    assert '"mcpServers"' in result.output
-    assert not (tmp_path / ".cursor/mcp.json").exists()
+    assert '"graph-me"' in result.output and '"mcp"' in result.output
+    assert "s3cr3t-token" not in result.output and '"other"' not in result.output
+    assert json.loads(path.read_text()) == other
 
 
 # -- schedule -----------------------------------------------------------------------------------

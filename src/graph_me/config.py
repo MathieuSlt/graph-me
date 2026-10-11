@@ -22,7 +22,7 @@ from typing import Literal
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import yaml
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 ENV_OUT = "GRAPH_ME_OUT"
 ENV_CONFIG = "GRAPH_ME_CONFIG"
@@ -118,6 +118,22 @@ class ExportConfig(BaseModel):
     ics: bool = False
 
 
+class ProfileConfig(BaseModel):
+    """What one agent may see: ``graph-me mcp --profile <name>`` (and ``ui --profile``)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    sources: list[str] = Field(min_length=1)  # names under `sources:` (or _overrides)
+    kinds: list[Literal["file", "email", "message", "contact"]] | None = None
+
+
+class LogConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    # The activity log (`graph-me log`) keeps queries this many days. 0 keeps none.
+    keep_days: int = Field(default=90, ge=0)
+
+
 class Config(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -127,6 +143,17 @@ class Config(BaseModel):
     overrides: Path | None = None
     index: IndexConfig = Field(default_factory=IndexConfig)
     export: ExportConfig = Field(default_factory=ExportConfig)
+    log: LogConfig = Field(default_factory=LogConfig)
+    profiles: dict[str, ProfileConfig] = Field(default_factory=dict)
+
+    @model_validator(mode="after")
+    def _known_profile_sources(self) -> Config:
+        for name, profile in self.profiles.items():
+            unknown = [s for s in profile.sources if s not in self.sources and s != "_overrides"]
+            if unknown:
+                raise ValueError(f"profile {name!r}: unknown source {', '.join(unknown)}")
+        return self
+
     people: PeopleConfig = Field(default_factory=PeopleConfig)
     extraction: ExtractionConfig = Field(default_factory=ExtractionConfig)
     sources: dict[str, SourceConfig] = Field(default_factory=dict)

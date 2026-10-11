@@ -95,6 +95,33 @@ If the file has an error, `scan` and `sync` say so and keep your previous correc
 | --- | --- |
 | `index.stale_after_days` | Answers say the index may be out of date when a source was last synced longer ago than this (default 7) |
 
+## Profiles
+
+A profile limits what one AI assistant can see to some of your sources. Give your coding
+assistant your work documents and mail, and keep your family chats out of its reach:
+
+```yaml
+profiles:
+  work:
+    sources: [work-docs, work-mail]   # names under `sources:`
+    kinds: [file, email]              # optional: only these kinds of items
+```
+
+Then register it with `graph-me install-mcp --profile work`, or start it with
+`graph-me mcp --profile work`. Under a profile, every answer comes only from those sources:
+search, documents, people and their facts, the graph, what's coming up, the status page. A person
+who appears in both worlds is shown with only what the profile's sources say about them: a
+colleague's work email, not the personal phone number from a family chat. Your corrections
+(`overrides.yaml`) stay out unless you add `_overrides` to the profile's sources.
+
+The profile is set when the server starts, by the app's config: the assistant can't switch it.
+
+## Activity log
+
+| Key | Meaning |
+| --- | --- |
+| `log.keep_days` | How long `graph-me log` keeps what was asked (default 90; 0 keeps nothing) |
+
 ## Export
 
 | Key | Meaning |

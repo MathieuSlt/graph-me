@@ -107,6 +107,12 @@ class MsgvaultConnector:
             self._check_schema()
         return self._conn
 
+    def close(self) -> None:
+        """Let go of msgvault's database once the run is over (msgvault may rewrite it)."""
+        if self._conn is not None:
+            self._conn.close()
+            self._conn = None
+
     def _columns(self, table: str) -> set[str]:
         return {r["name"] for r in self._conn.execute(f"PRAGMA table_info({table})")}
 

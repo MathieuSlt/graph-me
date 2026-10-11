@@ -19,7 +19,7 @@ import sqlite3
 from collections.abc import Callable, Iterator
 from concurrent.futures import ProcessPoolExecutor
 from dataclasses import asdict, dataclass, field
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 
 import yaml
@@ -197,14 +197,18 @@ def scan(
     workers: int | None = None,
     progress: Progress | None = None,
     since: datetime | None = None,
+    reread: bool = False,
 ) -> ScanReport:
     """Add new items and update changed ones. Never forgets items missing from a source.
+
+    ``reread``: read every item again, even unchanged ones (after an upgrade that learns more
+    from the same items).
 
     ``since`` (aware datetime): read only items dated on or after it, where the connector can
     tell (``newer_than``), so a first scan gives answers fast. A later full scan reads the rest.
     """
     return _run(conn, cfg, only_source=only_source, workers=workers, progress=progress,
-                since=since)  # fmt: skip
+                since=since, reread=reread)  # fmt: skip
 
 
 @db.locked
@@ -239,6 +243,7 @@ def _run(
     forget_missing: bool = False,
     allow_mass_forget: bool = False,
     since: datetime | None = None,
+    reread: bool = False,
 ) -> ScanReport:
     if only_source and only_source not in cfg.sources:
         raise ValueError(f"no source named {only_source!r} in config.yaml")
@@ -271,17 +276,22 @@ def _run(
                                                  config_hash = excluded.config_hash""",
                 (name, source.type, _config_hash(source.model_dump())),
             )
-            stats = _scan_source(
-                conn,
-                name,
-                connector,
-                workers_,
-                blacklist,
-                progress,
-                forget_missing=forget_missing,
-                allow_mass_forget=allow_mass_forget,
-                since=since if name != corrections.SOURCE else None,
-            )
+            try:
+                stats = _scan_source(
+                    conn,
+                    name,
+                    connector,
+                    workers_,
+                    blacklist,
+                    progress,
+                    forget_missing=forget_missing,
+                    allow_mass_forget=allow_mass_forget,
+                    since=since if name != corrections.SOURCE else None,
+                    reread=reread,
+                )
+            finally:
+                if close := getattr(connector, "close", None):
+                    close()
             report.sources[name] = stats
             if stats.failure is None:
                 conn.execute(
@@ -294,6 +304,7 @@ def _run(
     _save_last_run(conn, report, "sync" if forget_missing else "scan")
     # Re-processed, forgotten or blacklisted items may have left entities, facts or relations.
     finish(conn, user.rejections(fixes, ctx) if fixes else ())
+    prune_log(conn, cfg.log.keep_days)
     db.compact(conn)
     return report
 
@@ -340,6 +351,14 @@ def backfill_values(conn: sqlite3.Connection) -> int:
     db.set_meta(conn, _RULES_META, current)
     conn.commit()
     return len(rows)
+
+
+def prune_log(conn: sqlite3.Connection, keep_days: int) -> int:
+    """Drop activity-log entries older than ``log.keep_days``."""
+    cutoff = (datetime.now(UTC) - timedelta(days=keep_days)).isoformat(timespec="seconds")
+    removed = conn.execute("DELETE FROM query_log WHERE ts < ?", (cutoff,)).rowcount
+    conn.commit()
+    return removed
 
 
 def _load_overrides(cfg: Config) -> corrections.Overrides | None:
@@ -428,6 +447,7 @@ def _scan_source(
     forget_missing: bool = False,
     allow_mass_forget: bool = False,
     since: datetime | None = None,
+    reread: bool = False,
 ) -> SourceStats:
     stats = SourceStats()
     newer_than = getattr(connector, "newer_than", None) if since else None
@@ -440,7 +460,7 @@ def _scan_source(
         for external_id, version in connector.list_ids():
             stats.seen += 1
             listed.add(external_id)
-            if known.get(external_id) == version:
+            if known.get(external_id) == version and not reread:
                 stats.unchanged += 1
             elif newer_than and not newer_than(external_id, version, since):
                 stats.older += 1

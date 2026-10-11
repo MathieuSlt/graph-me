@@ -37,6 +37,14 @@ index:
 export:
   ics: false                        # true: rewrite graph-out/upcoming.ics (birthdays, deadlines) after every scan, for your calendar
 
+# profiles:                        # limit an AI assistant to some sources: graph-me mcp --profile work
+#   work:
+#     sources: [docs]                 # names under `sources:`
+#     kinds: [file, email]            # optional: only these kinds of items
+
+log:
+  keep_days: 90                     # how long `graph-me log` keeps what your assistants asked
+
 blacklist:
   paths: []                         # folders and files never to index
   contacts: []                      # emails or phone numbers: every item involving them is dropped

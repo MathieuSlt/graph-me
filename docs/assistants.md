@@ -17,9 +17,22 @@ graph-me learned it from.
 ## Other MCP clients
 
 `graph-me install-mcp --client claude-desktop`, `--client cursor` or `--client codex` adds
-graph-me to those apps' config files (it shows the change first and keeps a `.bak` copy).
+graph-me to those apps' config files (it shows the entry it adds first and keeps a `.bak` copy).
 Other MCP clients work the same way: point them at the command `graph-me mcp`, with
 `--config <path to config.yaml>` before `mcp` if your config is not in `~/graph-me`.
+
+## One assistant, some sources
+
+A [profile](configuration.md#profiles) limits an assistant to some of your sources:
+
+```bash
+graph-me install-mcp --profile work   # registers graph-me-work, which only sees `work` sources
+```
+
+## See what your assistant asked
+
+`graph-me log` (or **Activity** in the web UI) lists every question your assistants asked, with
+the app's name and what graph-me returned.
 
 ## MCP tools
 
