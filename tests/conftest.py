@@ -63,7 +63,9 @@ def mv(tmp_path, msgvault_template):
 
     root, home = msgvault_template
     target = tmp_path / "mv"
-    shutil.copytree(home, target / "home", ignore=shutil.ignore_patterns("*.lock", "daemon*"))
+    # Leave the daemon's state behind: its locks, log and half-done work folders.
+    skip = ("*.lock", "daemon*", "serve.log", ".analytics.build-*", ".cache-tmp-*", "tmp")
+    shutil.copytree(home, target / "home", ignore=shutil.ignore_patterns(*skip))
     shutil.copytree(root / "contacts", target / "contacts")
     return target / "home", target / "contacts"
 

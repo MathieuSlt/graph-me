@@ -276,18 +276,22 @@ def _run(
                                                  config_hash = excluded.config_hash""",
                 (name, source.type, _config_hash(source.model_dump())),
             )
-            stats = _scan_source(
-                conn,
-                name,
-                connector,
-                workers_,
-                blacklist,
-                progress,
-                forget_missing=forget_missing,
-                allow_mass_forget=allow_mass_forget,
-                since=since if name != corrections.SOURCE else None,
-                reread=reread,
-            )
+            try:
+                stats = _scan_source(
+                    conn,
+                    name,
+                    connector,
+                    workers_,
+                    blacklist,
+                    progress,
+                    forget_missing=forget_missing,
+                    allow_mass_forget=allow_mass_forget,
+                    since=since if name != corrections.SOURCE else None,
+                    reread=reread,
+                )
+            finally:
+                if close := getattr(connector, "close", None):
+                    close()
             report.sources[name] = stats
             if stats.failure is None:
                 conn.execute(

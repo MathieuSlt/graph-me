@@ -88,6 +88,9 @@ class Connector(Protocol):
         """Yield full items for the given ids. Ids that vanished meanwhile are skipped."""
         ...
 
+    # Optional: ``close()`` releases what the connector holds open (a database). The pipeline
+    # calls it after reading the source.
+    #
     # Optional: ``newer_than(external_id, version, cutoff) -> bool`` says the item is dated on or
     # after ``cutoff`` (aware datetime). ``scan --since`` reads only those first; a later full
     # scan reads the rest. Connectors without it are read in full.
