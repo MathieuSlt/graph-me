@@ -63,10 +63,16 @@ def test_detect_without_locale(tmp_path):
     found = detect.detect(tmp_path, env={"LANG": "C.UTF-8", "TZ": "Nowhere/Land"})
     assert found.candidates == []
     assert found.phone_country_code is None
+    # POSIX order: LC_ALL, then LC_TELEPHONE / LC_CTYPE, then LANG.
+    both = {"LC_ALL": "en_US.UTF-8", "LANG": "fr_FR.UTF-8"}
+    assert detect.detect(tmp_path, env=both).phone_country_code == "1"
 
 
 def test_init_detect_cli(fake_home, tmp_path, monkeypatch):
     monkeypatch.setenv("HOME", str(fake_home))
+    # LC_ALL and LC_CTYPE win over LANG (CI runners set them): clear them for this test.
+    for var in ("LC_ALL", "LC_TELEPHONE", "LC_CTYPE"):
+        monkeypatch.delenv(var, raising=False)
     monkeypatch.setenv("LANG", "fr_FR.UTF-8")
     monkeypatch.setenv(config.ENV_CONFIG, str(tmp_path / "cfg" / "config.yaml"))
     monkeypatch.setenv(config.ENV_OUT, str(tmp_path / "cfg" / "graph-out"))
