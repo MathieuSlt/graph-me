@@ -43,7 +43,9 @@ keywords come from your labels, meaning-based search from the local model.
 ## 2. Ask
 
 Prefer the MCP tools when they are available (`search`, `find_document`, `who_is`, `get_fact`,
-`timeline`, `related`, `upcoming`, `get_item`, `status`). For "what expires / renews / is due",
+`timeline`, `related`, `upcoming`, `get_item`, `get_thread`, `status`). For "when did I last
+see / talk to X", `who_is` gives `last_contact` and `next_meeting`; `timeline` with `query`
+lists everything about a topic in date order; `get_thread` returns a whole conversation. For "what expires / renews / is due",
 "what's coming up" or "birthdays this month", use `upcoming` (CLI: `graph-me upcoming --json`).
 Deadlines are read by rules: quote the document they came from. Otherwise use the CLI:
 

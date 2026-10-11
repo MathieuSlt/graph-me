@@ -93,6 +93,8 @@ Don't have uv? `curl -LsSf https://astral.sh/uv/install.sh | sh`. More in
 | Folders on your disk | The text of PDF, Word (`.docx`), Excel (`.xlsx`), PowerPoint (`.pptx`), Markdown, plain text, HTML, `.eml` emails, CSV, JSON and code files |
 | Email and chats | Gmail, IMAP, Outlook/Microsoft 365, MBOX, WhatsApp, iMessage, Slack, Discord and more, through [msgvault](https://github.com/kenn-io/msgvault) |
 | Contacts | Address books exported as `.vcf` files, or contacts synced by msgvault |
+| Calendars | `.ics` files, or the macOS Calendar app with all its accounts (`graph-me[macos]`) |
+| Scans | Scanned PDFs and photographed documents, read on your computer (`graph-me[ocr]`) |
 
 From all that, graph-me builds a small graph: the people you deal with (merged across email,
 phone and chats), your folders and projects, and facts such as birthdays, addresses, and
@@ -100,7 +102,7 @@ deadlines read in your documents (a lease that ends, a policy that renews, a bil
 Two contacts are the
 same person only if they share an email or a phone number, so two "Sophie" stay two people.
 
-graph-me doesn't read images, audio, or scanned PDFs without a text layer.
+graph-me doesn't read audio, or photos as pictures. Scanned documents need `graph-me[ocr]`.
 
 ---
 
@@ -113,8 +115,8 @@ graph-me doesn't read images, audio, or scanned PDFs without a text layer.
 | **Web UI** | `graph-me ui`: search, a graph explorer, person pages with the evidence behind every fact | `graph-me[ui]` |
 | **Other agents** | `graph-me query "..." --format markdown` or `--format json` | the base install |
 
-The MCP server offers nine read-only tools: `search`, `find_document`, `who_is`, `get_fact`,
-`timeline`, `related`, `upcoming`, `get_item` and `status`. See
+The MCP server offers ten read-only tools: `search`, `find_document`, `who_is`, `get_fact`,
+`timeline`, `related`, `upcoming`, `get_item`, `get_thread` and `status`. See
 [Use it from your AI assistant](https://mathieuslt.github.io/graph-me/assistants/).
 
 ---
@@ -196,7 +198,7 @@ More in [Privacy and safety](https://mathieuslt.github.io/graph-me/privacy/).
 
 - Without Tier 1, search matches words, not meaning.
 - Birthday, deadline and amount rules exist for English and French only.
-- No OCR: scanned PDFs and photos are skipped.
+- Scanned PDFs need the `[ocr]` extra and `ocr: true` on the folder.
 - Linux and macOS only for now.
 - `sync` runs when you run it, or on a schedule you install (`graph-me schedule install`).
 

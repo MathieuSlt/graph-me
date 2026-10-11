@@ -10,12 +10,16 @@ from graph_me.connectors.base import Connector
 
 def _builtins() -> dict[str, type]:
     from graph_me.connectors.filesystem import FilesystemConnector
+    from graph_me.connectors.ics import IcsConnector
+    from graph_me.connectors.macos_calendar import MacosCalendarConnector
     from graph_me.connectors.msgvault import MsgvaultConnector
     from graph_me.connectors.overrides import OverridesConnector
     from graph_me.connectors.vcard import VcardConnector
 
     return {
         "filesystem": FilesystemConnector,
+        "ics": IcsConnector,
+        "macos-calendar": MacosCalendarConnector,
         "msgvault": MsgvaultConnector,
         "overrides": OverridesConnector,
         "vcard": VcardConnector,

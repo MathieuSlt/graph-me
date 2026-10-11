@@ -34,7 +34,7 @@ from graph_me.service import Service, StoreMissing
 
 HERE = Path(__file__).parent
 COOKIE = "graph_me_token"
-KINDS = ("file", "email", "message", "contact")
+KINDS = ("file", "email", "message", "contact", "event")
 ENTITY_KINDS = ("person", "project", "document", "org", "place")
 GRAPH_LIMIT = 2000
 _BLANK_LINES = re.compile(r"\s*\n\s*\n\s*")
@@ -164,6 +164,11 @@ def build_app(service: Service, token: str) -> Starlette:
         return page(request, "upcoming.html", days=days, kind=kind,
                     result=service.upcoming(days=days, kind=kind))  # fmt: skip
 
+    async def timeline(request: Request) -> Response:
+        q = (request.query_params.get("q") or "").strip()
+        result = service.timeline(query=q, limit=50) if q else None
+        return page(request, "timeline.html", q=q, result=result)
+
     async def activity(request: Request) -> Response:
         interface = request.query_params.get("interface") or None
         interface = interface if interface in ("cli", "mcp", "ui") else None
@@ -187,6 +192,7 @@ def build_app(service: Service, token: str) -> Starlette:
             Route("/api/graph", graph_api),
             Route("/api/graph/{eid}", neighbours_api),
             Route("/upcoming", upcoming),
+            Route("/timeline", timeline),
             Route("/activity", activity),
             Route("/status", status),
             Mount("/static", StaticFiles(directory=HERE / "static"), name="static"),

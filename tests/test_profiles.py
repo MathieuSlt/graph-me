@@ -129,6 +129,9 @@ def answers(service: Service, ids: dict) -> dict:
         "fact sister": service.get_fact("my sister", "birthday"),
         "related": service.related("Sophie"),
         "timeline": service.timeline("Sophie"),
+        "timeline topic": service.timeline(query="diary Grandma lease"),
+        "thread diary": service.thread(ids["diary"]),
+        "thread budget": service.thread(ids["budget"]),
         "upcoming": service.upcoming(days=366, today=TODAY),
         "status": service.status(),
         "graph": service.graph_view(),
@@ -255,7 +258,8 @@ def test_ui_activity_and_profile(world):
     assert "diary.md" not in client.get("/search?q=diary").text
     status = client.get("/status").text
     assert "profile work" in status and "family-" not in status
-    for path in ("/", "/graph", "/upcoming?days=366", f"/entity/{ids['sophie']}"):
+    for path in ("/", "/graph", "/upcoming?days=366", f"/entity/{ids['sophie']}",
+                 "/timeline?q=lease", f"/item/{ids['budget']}"):  # fmt: skip
         assert not [s for s in SECRETS if s in client.get(path).text], path
     graph_data = client.get("/api/graph").text
     assert not [s for s in SECRETS if s in graph_data]

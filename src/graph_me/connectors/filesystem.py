@@ -12,6 +12,8 @@ A folder holding an ``IGNORE_MARKER`` file is skipped with everything under it, 
 one of the configured paths. Tools put it on folders of generated data (graph-me's own test
 fixtures) so they never pass for the user's documents.
 - ``trust``: ``self`` (default: your own files) or ``untrusted`` (e.g. a Downloads folder).
+- ``ocr``: read scanned PDF pages (needs the ``[ocr]`` extra). Turning it on reads PDFs again.
+- ``images``: with ``ocr``, also read ``.png`` / ``.jpg`` files as photographed documents.
 """
 
 from __future__ import annotations
@@ -26,7 +28,7 @@ from pathlib import Path
 
 from graph_me.config import BlacklistConfig, SourceConfig
 from graph_me.connectors.base import Item, SourceUnavailable
-from graph_me.pipeline.parse import is_supported
+from graph_me.pipeline.parse import IMAGE_EXTENSIONS, is_supported
 
 DEFAULT_EXCLUDE = (
     # version control, dependencies, virtualenvs
@@ -124,6 +126,16 @@ class FilesystemConnector:
         self.trust = extra.get("trust", "self")
         if self.trust not in ("self", "known", "untrusted"):
             raise ValueError(f"source {name!r}: trust must be self, known or untrusted")
+        self.ocr = bool(extra.get("ocr", False))
+        self.images = self.ocr and bool(extra.get("images", False))
+
+    def _version(self, path: Path, st: os.stat_result) -> str:
+        """mtime:size, plus a mark on files OCR reads, so turning OCR on reads them again."""
+        version = _file_version(st)
+        suffix = path.suffix.lower()
+        if self.ocr and (suffix == ".pdf" or suffix in IMAGE_EXTENSIONS):
+            version += ":ocr"
+        return version
 
     def _excluded(self, path: Path, is_dir: bool = False) -> bool:
         posix = path.as_posix() + ("/" if is_dir else "")
@@ -152,7 +164,7 @@ class FilesystemConnector:
         root = next((r for r in self.roots if path == r or path.is_relative_to(r)), None)
         if root is None or not path.is_file():
             return False
-        if path.is_symlink() or not is_supported(path) or self._excluded(path):
+        if path.is_symlink() or not is_supported(path, self.images) or self._excluded(path):
             return True
         for folder in path.parents:
             if folder == root or not folder.is_relative_to(root):
@@ -177,7 +189,8 @@ class FilesystemConnector:
             else:
                 continue
             for path in candidates:
-                if path not in seen and is_supported(path) and not self._excluded(path):
+                supported = is_supported(path, self.images)
+                if path not in seen and supported and not self._excluded(path):
                     seen.add(path)
                     yield path
 
@@ -199,7 +212,7 @@ class FilesystemConnector:
     def list_ids(self) -> Iterator[tuple[str, str]]:
         for path in self._walk():
             try:
-                yield str(path), _file_version(path.stat())
+                yield str(path), self._version(path, path.stat())
             except OSError:
                 continue
 
@@ -213,7 +226,7 @@ class FilesystemConnector:
                 continue
             yield Item(
                 external_id=external_id,
-                version=_file_version(st),
+                version=self._version(path, st),
                 kind="file",
                 title=path.name,
                 uri=str(path),
@@ -221,7 +234,7 @@ class FilesystemConnector:
                 modified_at=datetime.fromtimestamp(st.st_mtime, tz=UTC),
                 content_hash=digest,
                 trust=self.trust,
-                extra={"root": str(self._root_of(path)), "size": st.st_size},
+                extra={"root": str(self._root_of(path)), "size": st.st_size, "ocr": self.ocr},
             )
 
     def _root_of(self, path: Path) -> Path:

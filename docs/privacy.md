@@ -29,7 +29,8 @@
   search, and birthdays and anniversaries from contact cards.
 - Deadlines and amounts are read by rules: a date near "renews on" can be wrong. Each one links
   to its document so you can check.
-- No OCR: graph-me skips scanned PDFs and photos.
+- Scanned PDFs are read only with `ocr: true` and `graph-me[ocr]`; photos only with
+  `images: true` too. OCR runs on your computer. Photos themselves (faces, places) aren't read.
 - Linux and macOS only for now.
 - `sync` runs when you run it, or on a schedule you install. There is no graph-me background
   service.

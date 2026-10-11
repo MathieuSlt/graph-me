@@ -3,6 +3,7 @@
 {% block title %}{{ e.name or "entity" }} · graph-me{% endblock %}
 {% block main %}
 <h1>{{ e.name or "(unnamed)" }} <span class="badge kind-{{ e.kind }}">{{ e.kind }}</span>{% if e.is_me %} <span class="badge">you</span>{% endif %}</h1>
+{% if e.last_contact or e.next_meeting %}<p class="small">{% if e.last_contact %}Last in touch: <a href="/item/{{ e.last_contact.id }}">{{ date(e.last_contact.date) }}</a> ({{ e.last_contact.kind }}){% endif %}{% if e.last_contact and e.next_meeting %} · {% endif %}{% if e.next_meeting %}Next meeting: <a href="/item/{{ e.next_meeting.id }}">{{ date(e.next_meeting.date) }}</a>{% endif %}</p>{% endif %}
 <p class="muted">{{ e.mentions }} item{{ "s" if e.mentions != 1 }}{% if e.community %} · group: {{ e.community }}{% endif %} · <a href="/graph#{{ e.id }}">show in graph</a></p>
 
 <div class="cols">

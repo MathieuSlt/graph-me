@@ -1,6 +1,9 @@
-"""Extract plain text from files. Text only: no OCR, no images.
+"""Extract plain text from files.
 
-- PDF: pypdfium2
+- PDF: pypdfium2. With ``ocr`` (the ``[ocr]`` extra, RapidOCR, models in the wheel, no network),
+  pages without a text layer (scans) are read from their image, up to ``OCR_MAX_PAGES``.
+- .png / .jpg: only with ``ocr`` and a source's ``images: true`` (photos of documents)
+- .enex: Evernote exports, every note's title and text
 - .docx / .pptx: read the XML inside the zip with the standard library
 - .xlsx: openpyxl (read-only)
 - .eml: standard library email parser
@@ -32,7 +35,12 @@ TEXT_EXTENSIONS = frozenset(
     }
 )  # fmt: skip
 OFFICE_EXTENSIONS = frozenset({".docx", ".pptx", ".xlsx"})
-SUPPORTED_EXTENSIONS = TEXT_EXTENSIONS | OFFICE_EXTENSIONS | {".pdf", ".eml", ".html", ".htm"}
+SUPPORTED_EXTENSIONS = TEXT_EXTENSIONS | OFFICE_EXTENSIONS | {".pdf", ".eml", ".html", ".htm",
+                                                              ".enex"}  # fmt: skip
+IMAGE_EXTENSIONS = frozenset({".png", ".jpg", ".jpeg"})  # read only with OCR and `images: true`
+TABLE_EXTENSIONS = frozenset({".csv", ".tsv"})
+OCR_MAX_PAGES = 30  # scanned pages read per PDF: OCR takes about a second a page
+OCR_SCALE = 2  # render pages at 144 dpi for OCR
 
 _WESTERN = ("cp1252", "latin_1", "iso8859_15")
 
@@ -44,18 +52,25 @@ class ParseError(Exception):
     pass
 
 
-def is_supported(path: Path) -> bool:
-    return path.suffix.lower() in SUPPORTED_EXTENSIONS
+def is_supported(path: Path, images: bool = False) -> bool:
+    suffix = path.suffix.lower()
+    return suffix in SUPPORTED_EXTENSIONS or (images and suffix in IMAGE_EXTENSIONS)
 
 
-def parse_file(path: Path) -> str:
+def parse_file(path: Path, ocr: bool = False) -> str:
     """Return the text of ``path``. Raises ParseError when the file can't be read."""
     suffix = path.suffix.lower()
     try:
         if path.stat().st_size > MAX_FILE_BYTES:
             raise ParseError(f"larger than {MAX_FILE_BYTES // 1024 // 1024} MB")
         if suffix == ".pdf":
-            return _pdf(path)
+            return _pdf(path, ocr)
+        if suffix in IMAGE_EXTENSIONS:
+            if not ocr:
+                raise ParseError("images are read only with `ocr: true`")
+            return _ocr(str(path))
+        if suffix == ".enex":
+            return _enex(path)
         if suffix == ".docx":
             return _docx(path)
         if suffix == ".pptx":
@@ -98,20 +113,58 @@ def decode_bytes(data: bytes) -> str:
     return str(top[0])
 
 
-def _pdf(path: Path) -> str:
+def _pdf(path: Path, ocr: bool = False) -> str:
     import pypdfium2 as pdfium
 
     pdf = pdfium.PdfDocument(path)
     try:
-        pages = []
+        pages, scanned = [], 0
         for page in pdf:
             textpage = page.get_textpage()
-            pages.append(textpage.get_text_bounded())
+            text = textpage.get_text_bounded()
             textpage.close()
+            if not text.strip() and ocr and scanned < OCR_MAX_PAGES:  # a scan: no text layer
+                scanned += 1
+                bitmap = page.render(scale=OCR_SCALE)
+                text = _ocr(bitmap.to_numpy())
+                bitmap.close()
+            pages.append(text)
             page.close()
         return "\n\n".join(p.strip() for p in pages if p.strip())
     finally:
         pdf.close()
+
+
+_engine = None
+
+
+def _ocr(image) -> str:
+    """Text lines read in an image (a path or an array) by RapidOCR, one engine per process."""
+    global _engine
+    if _engine is None:
+        try:
+            import logging
+
+            from rapidocr import RapidOCR
+        except ImportError:
+            raise ParseError(
+                'scanned pages need the [ocr] extra: uv tool install "graph-me[ocr]"'
+            ) from None
+        logging.getLogger("RapidOCR").setLevel(logging.WARNING)
+        _engine = RapidOCR()
+    result = _engine(image)
+    return "\n".join(t for t in (getattr(result, "txts", None) or ()) if t and t.strip())
+
+
+def _enex(path: Path) -> str:
+    """Evernote export: one block per note, its title then its text (ENML is XHTML)."""
+    root = ElementTree.fromstring(path.read_bytes())
+    notes = []
+    for note in root.iter("note"):
+        title = (note.findtext("title") or "").strip()
+        body = html_to_text(note.findtext("content") or "")
+        notes.append("\n\n".join(x for x in (title, body.strip()) if x))
+    return "\n\n".join(n for n in notes if n)
 
 
 def _read_member(zf: zipfile.ZipFile, name: str) -> bytes:

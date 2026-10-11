@@ -11,7 +11,7 @@ from pydantic import BaseModel, Field
 
 from graph_me.config import BlacklistConfig, SourceConfig
 
-ItemKind = Literal["file", "email", "message", "contact", "thread"]
+ItemKind = Literal["file", "email", "message", "contact", "event", "thread"]
 
 
 class Party(BaseModel):

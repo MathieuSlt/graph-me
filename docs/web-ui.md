@@ -12,6 +12,8 @@ This opens a page in your browser with four parts:
   to open its page.
 - **Person and project pages** with identifiers, facts, relations and recent items. Each fact
   has a "Why do I know this?" list of the files and messages behind it.
+- **Timeline** of a topic: everything about it in date order. An item's page also shows the
+  conversation it belongs to, and a person's page when you were last in touch.
 - **Coming up**: birthdays, anniversaries and deadlines read in your documents, with where each
   one came from.
 - **Activity**: what your AI assistants, the terminal and the UI asked, and what came back.

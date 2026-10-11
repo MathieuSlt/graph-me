@@ -22,6 +22,8 @@ the optional parts by name:
 | `uv tool install --managed-python "graph-me[ui]"` | The [web UI](web-ui.md) |
 | `uv tool install --managed-python "graph-me[medium]"` | [AI labels and meaning-based search](tier1.md) (Tier 1) |
 | `uv tool install --managed-python "graph-me[medium,ui]"` | Both |
+| `uv tool install --managed-python "graph-me[ocr]"` | Text from scanned PDFs (and photos of documents), read on your computer |
+| `uv tool install --managed-python "graph-me[macos]"` | The macOS Calendar app as a source |
 
 ## Mail and chats
 

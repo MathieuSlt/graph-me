@@ -51,7 +51,7 @@ def test_every_tool_is_read_only(server):
     tools = list_tools(srv)
     assert {t.name for t in tools} == {
         "search", "find_document", "who_is", "get_fact", "timeline", "related", "get_item",
-        "status", "upcoming",
+        "status", "upcoming", "get_thread",
     }  # fmt: skip
     for t in tools:
         a = t.annotations

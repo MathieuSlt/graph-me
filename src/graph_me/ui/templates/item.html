@@ -25,6 +25,13 @@
     {% if item.facts %}<ul class="plain">{% for f in item.facts %}
       <li>{{ entity_link(f.entity) }}: {{ f.key|replace("_", " ") }} = <strong>{{ f.value }}</strong> {{ confidence(f.confidence) }} <span class="muted small">{{ f.method }}</span></li>
     {% endfor %}</ul>{% else %}<p class="muted">No facts.</p>{% endif %}
+    {% if item.thread %}
+    <h2>Conversation ({{ item.thread|length }})</h2>
+    <ol class="plain small">{% for t in item.thread %}
+      <li>{% if t.id == item.id %}<strong>{{ t.title or "(untitled)" }}</strong>{% else %}<a href="/item/{{ t.id }}">{{ t.title or "(untitled)" }}</a>{% endif %}
+        <span class="muted">{{ date(t.date) }}{% if t.get("from") %} · {{ t.from }}{% endif %}</span></li>
+    {% endfor %}</ol>
+    {% endif %}
     <h2>Mentions</h2>
     {% if item.entities %}<ul class="plain">{% for e in item.entities %}
       <li>{{ entity_link(e) }} <span class="muted small">{{ e.kind }} · {{ e.roles|join(", ") }}</span></li>

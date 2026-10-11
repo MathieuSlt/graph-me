@@ -75,7 +75,8 @@ Principles:
 | Local web UI: search, graph, person page, provenance | Timeline view, blacklist editing in the UI |
 | Linux + macOS | Windows as a tested platform |
 
-Out of scope for now: images and OCR, screen capture, audio capture.
+Out of scope for now: understanding photos (faces, places), screen capture, audio capture.
+Scanned documents are read with the optional `[ocr]` extra (decided 2026-10-11).
 
 **v1 demo**: in Claude Code, "use graph-me: where is the lease PDF my landlord emailed me last year, and when is my sister's birthday?" returns a file path, the source email, and a date with its source message.
 
@@ -287,7 +288,7 @@ Open questions:
 | Web UI | Small local server |
 | Languages | Multilingual from the start (FR + EN rule packs) |
 | Platforms | Linux + macOS first |
-| Out of scope | Screen and audio capture; images later |
+| Out of scope | Screen and audio capture; photos as pictures. Scanned documents through `[ocr]` (2026-10-11) |
 | Messaging source | msgvault recommended, not required: graph-me reads its database read-only and builds its own people and facts from any connector's messages (decided 2026-09-30) |
 | Contacts | From msgvault (raw CardDAV entries) or `.vcf` files (`vcard` connector) |
 | People | Same person only when an email or phone is shared; never by name alone |
@@ -305,6 +306,8 @@ Open questions:
 | Upcoming and calendar | `upcoming` (CLI, MCP, UI page, REPORT.md) lists birthdays, anniversaries and future deadlines; `export ics` writes them as an RFC 5545 file (yearly events, 7-day reminders) in graph-out, never into a calendar (decided 2026-10-11) |
 | Activity log | `query_log` records the interface, the MCP client name (from the handshake) and the profile; `graph-me log` and the UI Activity page read it, pruned after `log.keep_days` (90). No MCP tool reads it (decided 2026-10-11) |
 | Profiles | `profiles:` in config.yaml; `mcp/ui --profile` fixes it at start. `store/scope.py` creates TEMP views named like the tables (SQLite resolves `temp` first), so every query is scoped without per-query code; writes name `main.`. Identifiers are shown only when a visible item showed them (`item_identifiers`, migration 005); older indexes need `scan --reread` once. Community labels are hidden; `meta`-based stats are filtered by hand (decided 2026-10-11) |
+| OCR | `[ocr]` extra with RapidOCR (models ship in the wheel: no download, no network). Per source `ocr: true` reads pages with no text layer (30 per PDF), `images: true` adds .png/.jpg; the file version gains `:ocr` so turning it on reads PDFs again (decided 2026-10-11) |
+| Calendars | `ics` connector (icalendar, core dependency, pure Python) and `macos-calendar` (EventKit through pyobjc in the `[macos]` extra, read-only use of what macOS calls full access; a refused or unaskable permission skips the source). Events are `event` items; participants are linked by `met`, every pair up to 10 people, organizer to attendees above. A `.ics` file with fewer events than `BEGIN:VEVENT` lines is treated as unreadable (decided 2026-10-11) |
 | msgvault Gmail scope | msgvault asks for `gmail.modify` (its deletion flow); documented, graph-me stays read-only |
 
 Name alternatives checked on PyPI (free as of 2026-09-30): kithgraph, lifeweave, selfgraph, personagraph, lore-graph, ownsight, kinloom. Taken: lifegraph (so life-graph too), clawgraph (so claw-graph too).

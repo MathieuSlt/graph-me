@@ -151,6 +151,13 @@ example `graph-me fact Sophie birthday`. Facts are `birthday`, `birth_year`, `an
 Tier 1), and `quote_amount` / `invoice_amount` (what someone quoted or billed you). Add `--json` for JSON.
 The output says when a fact has low confidence.
 
+### `timeline`
+
+`graph-me timeline <person>` lists the mails, chats, meetings and files involving someone, newest
+first. `graph-me timeline --topic "apartment move"` does the same for a topic. `--since`,
+`--until`, `--limit` and `--json` work as for `query`. `graph-me who` also says when you were last
+in touch with someone and when you meet next.
+
 ### `upcoming`
 
 `graph-me upcoming` lists what is coming up in the next 60 days: birthdays and anniversaries,

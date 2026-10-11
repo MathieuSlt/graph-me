@@ -42,7 +42,8 @@ the app's name and what graph-me returned.
 | `find_document` | Finds a file from a description, with the email it came with |
 | `who_is` | Shows a person's identifiers, facts and closest contacts |
 | `get_fact` | Returns one fact (birthday, nickname, organization...) and its sources |
-| `timeline` | Lists a person's items in date order |
+| `timeline` | Lists a person's items, or a topic's (`query`), in date order |
+| `get_thread` | Returns a whole conversation (mail thread, chat, recurring event) |
 | `related` | Lists the people and projects linked to someone |
 | `get_item` | Returns the full text of one file or message |
 | `upcoming` | Lists birthdays, anniversaries and deadlines (expires, renews, due, ends) coming up |

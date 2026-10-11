@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% from "_macros.html" import date, trust, flagged %}
+{% block title %}Timeline · graph-me{% endblock %}
+{% block main %}
+<h1>Timeline</h1>
+<form class="search" method="get" action="/timeline">
+  <input type="search" name="q" value="{{ q }}" placeholder="A topic: apartment move, car, tax return…" autofocus>
+  <button type="submit">Show</button>
+</form>
+{% if result %}
+  {% set items = result.results[0]["items"] %}
+  {% if result.index.stale %}<p class="warn-text">The index was last synced {{ result.index.age_days }} days ago: recent items may be missing.</p>{% endif %}
+  {% if not items %}<p class="muted">Nothing found. Try other words.</p>{% else %}
+  <ol class="plain">{% for it in items %}
+    <li><span class="muted small">{{ date(it.date) }}</span> <span class="badge kind-{{ it.kind }}">{{ it.kind }}</span>
+      <a href="/item/{{ it.id }}">{{ it.title or "(untitled)" }}</a> {{ flagged(it) }}
+      {% if it.get("from") %}<span class="muted small">from {{ it.from }}</span>{% endif %}</li>
+  {% endfor %}</ol>{% endif %}
+{% else %}
+<p class="muted">Everything about a topic, in date order: mails, chats, meetings and files. For a person, open their page.</p>
+{% endif %}
+{% endblock %}

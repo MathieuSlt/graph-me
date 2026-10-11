@@ -8,6 +8,7 @@ sources:
     paths: [~/Documents, ~/Desktop] # folders or files to read, subfolders included
     trust: self                     # self (your files) | known (people you know) | untrusted (anyone)
     # exclude: ["**/old-backups/**"] # patterns to skip; replaces the built-in list (.git, node_modules, caches, build output...)
+    # ocr: true                     # read scanned PDF pages (graph-me[ocr], on this computer); images: true also reads .jpg/.png
 
   # downloads:
   #   type: filesystem
@@ -19,6 +20,10 @@ sources:
   #   db: ~/.msgvault               # msgvault folder or its msgvault.db file
   #   accounts: []                  # only these accounts (emails, phone numbers); empty = all
   #   contacts: true                # also read the address book synced into msgvault
+
+  # calendar:
+  #   type: ics                     # calendar exports (.ics); or type: macos-calendar for the Calendar app (graph-me[macos])
+  #   paths: [~/Documents/Calendars]
 
   # contacts:
   #   type: vcard                   # address books exported as .vcf

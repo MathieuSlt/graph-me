@@ -30,7 +30,7 @@ app = typer.Typer(
 SETUP, INDEX, ASK, CORRECT, AI, INTERFACES = (
     "Set up", "Index", "Ask", "Correct", "AI enrichment", "Interfaces"
 )  # fmt: skip
-KINDS = ("file", "email", "message", "contact")
+KINDS = ("file", "email", "message", "contact", "event")
 FORMATS = ("text", "json", "markdown")
 PROVIDERS = ("agent", "ollama", "anthropic", "openai_compat")
 
@@ -673,7 +673,7 @@ def query(
             "--kind",
             metavar="KIND",
             callback=_one_of(*KINDS),
-            help="Only file, email, message or contact.",
+            help="Only file, email, message, contact or event.",
         ),
     ] = None,  # fmt: skip
     source: Annotated[
@@ -784,6 +784,8 @@ _RELATION_LABELS = {  # (type, direction) -> (text, what the weight counts)
     ("wrote_to", "in"): ("received from {name}", "message"),
     ("in_folder", "out"): ("in the folder {name}", "file"),
     ("in_folder", "in"): ("contains {name}", "file"),
+    ("met", "out"): ("met {name}", "meeting"),
+    ("met", "in"): ("met {name}", "meeting"),
 }
 
 
@@ -819,6 +821,10 @@ def who(
         ids = ", ".join(a["value"] for a in person["aliases"])
         typer.echo(f"   identifiers: {ids or 'none'}")
         typer.echo(f"   seen in {_plural(person['mentions'], 'item')}")
+        if last := person.get("last_contact"):
+            typer.echo(f"   last in touch: {_date(last)} ({last['kind']}: {last['title']})")
+        if meeting := person.get("next_meeting"):
+            typer.echo(f"   next meeting: {_date(meeting)} ({meeting['title']})")
         for rel in person["related"]:
             name = rel["entity"]["name"] or rel["entity"]["id"]
             text, unit = _RELATION_LABELS.get(
@@ -887,6 +893,47 @@ def fact(
         raise _error(f"No {key.replace('_', ' ')} known for {who_text!r}.")
     for person in found:
         _echo_facts(person["entity"], person["facts"])
+
+
+@app.command(rich_help_panel=ASK)
+def timeline(
+    ctx: typer.Context,
+    text: Annotated[
+        str, typer.Argument(metavar="PERSON_OR_TOPIC", help="A person, or a topic with --topic.")
+    ],
+    topic: Annotated[
+        bool, typer.Option("--topic", help="TEXT is a topic (apartment move), not a person.")
+    ] = False,
+    since: Annotated[
+        str | None,
+        typer.Option(metavar="YYYY-MM-DD", callback=_day, help="Only items dated on or after."),
+    ] = None,
+    until: Annotated[
+        str | None,
+        typer.Option(metavar="YYYY-MM-DD", callback=_day, help="Only items dated on or before."),
+    ] = None,
+    limit: Annotated[int, typer.Option(metavar="N", help="At most N items.")] = 20,
+    as_json: Annotated[bool, typer.Option("--json", help="Print JSON.")] = False,
+) -> None:
+    """Items involving a person, or about a topic, newest first (mails, chats, meetings, files)."""
+    c = _ctx(ctx)
+    _require_index(c)
+    service = _service(c)
+    if topic:
+        result = service.timeline(query=text, since=since, until=until, limit=limit)
+    else:
+        result = service.timeline(text, since=since, until=until, limit=limit)
+    if as_json:
+        typer.echo(json.dumps(result, ensure_ascii=False, indent=2))
+        return
+    _warn_if_stale(result["index"])
+    if not result["results"] or not any(r["items"] for r in result["results"]):
+        raise _error(f"Nothing found for {text!r}.")
+    for r in result["results"]:
+        if r["entity"]:
+            typer.secho(r["entity"]["name"] or r["entity"]["id"], bold=True)
+        for item in r["items"]:
+            typer.echo(f"   {_date(item):<10}  {item['kind']:<8} {item['title'] or '(untitled)'}")
 
 
 @app.command(rich_help_panel=ASK)
