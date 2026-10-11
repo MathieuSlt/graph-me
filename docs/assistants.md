@@ -3,8 +3,8 @@
 graph-me ships a Claude Code skill and an MCP server. Set both up once:
 
 ```bash
-graph-me install-skill                     # teaches Claude Code when and how to use graph-me
-claude mcp add graph-me -- graph-me mcp    # lets Claude Code call graph-me's tools
+graph-me install-skill   # teaches Claude Code when and how to use graph-me
+graph-me install-mcp     # lets Claude Code call graph-me's tools (runs `claude mcp add`)
 ```
 
 Then start your request with "use graph-me":
@@ -16,8 +16,10 @@ graph-me learned it from.
 
 ## Other MCP clients
 
-Other MCP clients (Claude Desktop, Cursor and others) work the same way. Point them at the
-command `graph-me mcp`.
+`graph-me install-mcp --client claude-desktop`, `--client cursor` or `--client codex` adds
+graph-me to those apps' config files (it shows the change first and keeps a `.bak` copy).
+Other MCP clients work the same way: point them at the command `graph-me mcp`, with
+`--config <path to config.yaml>` before `mcp` if your config is not in `~/graph-me`.
 
 ## MCP tools
 

@@ -1,16 +1,22 @@
 # Quick start
 
+Want to see it first? `graph-me demo` builds a graph from made-up data and prints questions to
+try on it.
+
 ## 1. Create the configuration
 
 ```bash
-graph-me init
+graph-me init --detect
 ```
 
-This writes `~/graph-me/config.yaml` and creates `~/graph-me/graph-out/`, where the index lives.
+graph-me looks for your Documents, Desktop and Downloads folders, Obsidian vaults, msgvault and
+`.vcf` address books, and asks which ones to index. It writes `~/graph-me/config.yaml` and
+creates `~/graph-me/graph-out/`, where the index lives. (`graph-me init` alone writes a
+commented template to fill in by hand.)
 
-## 2. Tell graph-me what to read
+## 2. Check what graph-me will read
 
-Open `~/graph-me/config.yaml` and list your sources:
+Open `~/graph-me/config.yaml` to adjust your sources:
 
 ```yaml
 sources:
@@ -43,7 +49,9 @@ explains them in place.
 ## 3. Build the index
 
 ```bash
-graph-me scan
+graph-me scan --since 90d   # the last 90 days first: answers within minutes
+graph-me scan               # then everything else
+graph-me doctor             # check the setup
 ```
 
 The first scan reads everything, so it takes a while on a big archive. Later runs only read
@@ -61,7 +69,11 @@ graph-me fact Sophie birthday
 ## 5. Keep it up to date
 
 Run `graph-me sync` whenever you want. It adds new items, updates changed ones and forgets
-deleted ones. Nothing runs in the background.
+deleted ones. To sync regularly without thinking about it:
+
+```bash
+graph-me schedule install --every 6h
+```
 
 ## Next steps
 

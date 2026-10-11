@@ -20,8 +20,8 @@ app = typer.Typer(
     help=(
         "Search your own files, emails, chats and contacts, from the terminal or your AI "
         "assistant. Everything stays on this computer, and graph-me never changes your data.\n\n"
-        "Getting started: run `graph-me init`, list your folders in config.yaml, then "
-        '`graph-me scan` and `graph-me query "lease"`.'
+        "Getting started: `graph-me init --detect` finds your folders, then `graph-me scan` and "
+        '`graph-me query "lease"`. To try it on made-up data first: `graph-me demo`.'
     ),
     no_args_is_help=True,
     add_completion=False,
@@ -84,6 +84,24 @@ def _day(value: str | None) -> str | None:
         except ValueError:
             raise typer.BadParameter(f"{value!r} is not a date. Use YYYY-MM-DD.") from None
     return value
+
+
+def _since(value: str | None) -> str | None:
+    """``90d``, ``12w``, ``6m`` or ``YYYY-MM-DD`` -> an aware ISO timestamp (UTC)."""
+    if value is None:
+        return None
+    from datetime import UTC, timedelta
+
+    value = value.strip()
+    units = {"d": 1, "w": 7, "m": 30, "y": 365}
+    if value[:-1].isdigit() and value[-1:].lower() in units:
+        days = int(value[:-1]) * units[value[-1].lower()]
+        return (datetime.now(UTC) - timedelta(days=days)).isoformat()
+    try:
+        day = date.fromisoformat(value)
+    except ValueError:
+        raise typer.BadParameter(f"{value!r}: use 90d, 12w, 6m, 1y or YYYY-MM-DD.") from None
+    return datetime(day.year, day.month, day.day, tzinfo=UTC).isoformat()
 
 
 def _config_error(path: Path, exc: Exception) -> str:
@@ -171,18 +189,59 @@ def _index_age(c: Context, conn: db.sqlite3.Connection) -> dict:
 
 
 @app.command(rich_help_panel=SETUP)
-def init(ctx: typer.Context) -> None:
+def init(
+    ctx: typer.Context,
+    detect: Annotated[
+        bool,
+        typer.Option(
+            "--detect",
+            help="Look for your Documents, Desktop, Downloads, Obsidian vaults, msgvault and .vcf "
+            "files, and ask which ones to index.",
+        ),
+    ] = False,  # fmt: skip
+    yes: Annotated[
+        bool, typer.Option("--yes", help="With --detect: keep everything found.")
+    ] = False,
+) -> None:
     """Create config.yaml (if missing) and an empty index. Start here."""
     c = _ctx(ctx)
     created = not c.config_path.exists()
+    if detect and not created:
+        raise _error(f"{c.config_path} already exists. --detect only writes a new config: move "
+                     "it away first, or edit it by hand.")  # fmt: skip
     if created:
         c.config_path.parent.mkdir(parents=True, exist_ok=True)
-        c.config_path.write_text(config.template_text(), encoding="utf-8")
+        text = _detected_config(yes) if detect else config.template_text()
+        c.config_path.write_text(text, encoding="utf-8")
     config.ensure_output(c.out)
     db.connect(c.db_path).close()
     typer.echo(f"config  {c.config_path} ({'created' if created else 'already there, kept'})")
     typer.echo(f"index   {c.out}")
-    typer.echo("\nNext: list your folders under `sources:` in config.yaml, then `graph-me scan`.")
+    if detect:
+        typer.echo(
+            "\nNext: `graph-me scan --since 90d` gives answers in minutes; then run "
+            "`graph-me scan` for the rest, and `graph-me doctor` to check the setup."
+        )
+    else:
+        typer.echo("\nNext: list your folders under `sources:` in config.yaml, then "
+                   "`graph-me scan`. Or start over with `graph-me init --detect`.")  # fmt: skip
+
+
+def _detected_config(yes: bool) -> str:
+    from graph_me.setup import detect
+
+    found = detect.detect()
+    if not found.candidates:
+        typer.echo("Found no usual folders. The config lists none: add yours under `sources:`.")
+    chosen = []
+    for cand in found.candidates:
+        if yes or typer.confirm(f"Index {cand.name}: {cand.why}?", default=True):
+            chosen.append(cand)
+    timezone = found.timezone or "unknown (this computer's is used)"
+    code = found.phone_country_code or "unknown, set it in config.yaml"
+    typer.echo(f"time zone           {timezone}")
+    typer.echo(f"phone country code  {code}")
+    return detect.render(found, chosen)
 
 
 @app.command(rich_help_panel=SETUP)
@@ -221,6 +280,7 @@ def where(ctx: typer.Context) -> None:
         )
     if not e.fts5:
         raise _error("error: this Python's SQLite has no full-text search (FTS5).")
+    typer.echo("\nFor a full check of sources, skill, MCP and schedule: graph-me doctor")
 
 
 @app.command("install-skill", rich_help_panel=SETUP)
@@ -243,6 +303,177 @@ def install_skill(
     typer.echo("\nAlso register the MCP server: claude mcp add graph-me -- graph-me mcp")
 
 
+@app.command(rich_help_panel=SETUP)
+def doctor(ctx: typer.Context) -> None:
+    """Check the setup (sources, index, skill, MCP, schedule) and say how to fix problems."""
+    from graph_me import doctor as doctor_mod
+
+    c = _ctx(ctx)
+    colors = {"ok": typer.colors.GREEN, "warn": typer.colors.YELLOW, "fail": typer.colors.RED,
+              "info": None}  # fmt: skip
+    checks = doctor_mod.run(c.config, c.config_path, c.out)
+    for check in checks:
+        mark = typer.style(f"{check.status:<4}", fg=colors[check.status], bold=True)
+        typer.echo(f"{mark}  {check.label}: {check.message}")
+        if check.hint and check.status != "ok":
+            typer.echo(typer.style(f"      {check.hint}", dim=True))
+    if any(ch.status == "fail" for ch in checks):
+        raise typer.Exit(1)
+
+
+@app.command("install-mcp", rich_help_panel=SETUP)
+def install_mcp(
+    ctx: typer.Context,
+    client: Annotated[
+        str,
+        typer.Option(
+            "--client",
+            metavar="APP",
+            callback=_one_of("claude-code", "claude-desktop", "cursor", "codex"),
+            help="claude-code, claude-desktop, cursor or codex.",
+        ),
+    ] = "claude-code",  # fmt: skip
+    name: Annotated[str, typer.Option(metavar="NAME", help="Server name in the app.")] = "graph-me",
+    print_only: Annotated[
+        bool, typer.Option("--print", help="Show what would change, without changing it.")
+    ] = False,
+    yes: Annotated[bool, typer.Option("--yes", help="Don't ask before editing.")] = False,
+) -> None:
+    """Register graph-me's MCP server with an AI app: Claude Code, Claude Desktop, Cursor, Codex."""
+    import difflib
+
+    from graph_me.setup import clients
+
+    c = _ctx(ctx)
+    try:
+        p = clients.plan(client, name, c.config_path)
+    except ValueError as exc:
+        raise _error(str(exc)) from exc
+    if p.run:
+        typer.echo("command  " + " ".join(p.run))
+    elif p.already:
+        typer.echo(f"{p.path} already has the {name!r} server. Nothing to do.")
+        return
+    else:
+        typer.echo(f"file     {p.path}")
+        diff = difflib.unified_diff(p.before.splitlines(), p.after.splitlines(),
+                                    "before", "after", lineterm="")  # fmt: skip
+        for line in diff:
+            typer.echo(typer.style(line, fg="green" if line.startswith("+") else
+                                   ("red" if line.startswith("-") else None)))  # fmt: skip
+    if print_only:
+        return
+    if not yes and not typer.confirm("Apply this change?", default=True):
+        raise typer.Exit(1)
+    try:
+        clients.apply(p)
+    except (OSError, FileNotFoundError) as exc:
+        raise _error(f"{exc}. Run the command above yourself.") from exc
+    except Exception as exc:  # subprocess.CalledProcessError
+        raise _error(f"failed: {exc}") from exc
+    typer.echo(f"Done. Restart {client} so it starts graph-me's server.")
+
+
+schedule_app = typer.Typer(
+    help="Run `graph-me sync` regularly with your system's scheduler (launchd or systemd).",
+    no_args_is_help=True,
+)
+app.add_typer(schedule_app, name="schedule", rich_help_panel=INDEX)
+
+
+@schedule_app.command("install")
+def schedule_install(
+    ctx: typer.Context,
+    every: Annotated[str, typer.Option(metavar="EVERY", help="30m, 6h, 1d... (min 15m).")] = "6h",
+) -> None:
+    """Sync every EVERY (replaces an existing schedule)."""
+    from graph_me.setup import clients
+    from graph_me.setup import schedule as schedule_mod
+
+    c = _ctx(ctx)
+    _require_index(c)
+    try:
+        seconds = schedule_mod.parse_every(every)
+        command = schedule_mod.sync_command(clients.executable(), c.config_path)
+        files = schedule_mod.install(command, c.out / schedule_mod.LOG_NAME, seconds)
+    except (ValueError, schedule_mod.ScheduleError) as exc:
+        raise _error(str(exc)) from exc
+    for f in files:
+        typer.echo(f"wrote   {f}")
+    typer.echo(f"graph-me sync now runs every {every}. Its output goes to "
+               f"{c.out / schedule_mod.LOG_NAME}.")  # fmt: skip
+
+
+@schedule_app.command("remove")
+def schedule_remove() -> None:
+    """Stop syncing on a schedule."""
+    from graph_me.setup import schedule as schedule_mod
+
+    try:
+        files = schedule_mod.remove()
+    except schedule_mod.ScheduleError as exc:
+        raise _error(str(exc)) from exc
+    typer.echo("\n".join(f"removed {f}" for f in files) or "No schedule was installed.")
+
+
+@schedule_app.command("status")
+def schedule_status() -> None:
+    """Show whether a schedule is installed and loaded."""
+    from graph_me.setup import schedule as schedule_mod
+
+    try:
+        st = schedule_mod.status()
+    except schedule_mod.ScheduleError as exc:
+        raise _error(str(exc)) from exc
+    if not st.installed:
+        typer.echo("No schedule. `graph-me schedule install` syncs regularly.")
+        return
+    every = f"every {st.every // 60} minutes" if st.every else "installed"
+    typer.echo(f"{every}, {'loaded' if st.active else 'NOT loaded'}: {st.files[0]}")
+
+
+@app.command(rich_help_panel=SETUP)
+def demo(
+    ctx: typer.Context,
+    folder: Annotated[
+        Path | None,
+        typer.Option("--dir", metavar="FOLDER", help="Where to build it. Default: a temp folder."),
+    ] = None,
+    open_ui: Annotated[bool, typer.Option("--ui", help="Open the web UI on it.")] = False,
+) -> None:
+    """Try graph-me on made-up data (documents, contacts, a correction), not yours."""
+    import tempfile
+
+    from graph_me import demo as demo_mod
+    from graph_me import report as report_mod
+    from graph_me.pipeline import run
+
+    if folder:
+        root = folder.expanduser().resolve()
+    else:
+        root = Path(tempfile.mkdtemp(prefix="graph-me-demo-"))
+    if folder and root.exists() and any(root.iterdir()):
+        raise _error(f"{root} is not empty. Pick an empty or new folder.")
+    cfg_path = demo_mod.build(root)
+    cfg = config.load_config(cfg_path)
+    out = config.ensure_output(config.resolve_output(None, cfg))
+    conn = db.connect(out / config.DB_NAME)
+    try:
+        run.scan(conn, cfg, workers=1)
+        report_mod.write(conn, out)
+    finally:
+        conn.close()
+    typer.echo(f"Built a demo graph from made-up data in {root}\n\nTry:")
+    for question in demo_mod.QUESTIONS:
+        words = " ".join(f'"{w}"' if " " in w else w for w in question[1:])
+        typer.echo(f"  graph-me --config {cfg_path} {question[0]} {words}")
+    typer.echo(f"  graph-me --config {cfg_path} ui")
+    typer.echo(f"\nDelete {root} when you are done.")
+    if open_ui:
+        ctx.obj = Context(config_path=cfg_path, config=cfg, out=out)
+        ui(ctx, port=0, open_browser=True)
+
+
 # -- index --------------------------------------------------------------------------------------
 
 _SOURCE = typer.Option("--source", metavar="NAME", help="Only this source from config.yaml.")
@@ -256,12 +487,21 @@ def scan(
     ctx: typer.Context,
     source: Annotated[str | None, _SOURCE] = None,
     workers: Annotated[int | None, _WORKERS] = None,
+    since: Annotated[
+        str | None,
+        typer.Option(
+            metavar="WHEN",
+            callback=_since,
+            help="Only items dated since then: 90d, 12w, 6m or YYYY-MM-DD. Gives answers fast "
+            "on a big archive; run a full scan afterwards for the rest.",
+        ),
+    ] = None,  # fmt: skip
     tier: Annotated[str, typer.Option(hidden=True)] = "none",
 ) -> None:
     """Read your sources and add new or changed items. Never removes anything (see sync)."""
     if tier != "none":
         raise _error("scan builds Tier 0 only. Run `graph-me enrich` afterwards for Tier 1.", 2)
-    _run_pipeline(ctx, source=source, workers=workers, forget=False)
+    _run_pipeline(ctx, source=source, workers=workers, forget=False, since=since)
 
 
 @app.command(rich_help_panel=INDEX)
@@ -277,6 +517,7 @@ def sync(
             "(in case a drive is unplugged).",
         ),
     ] = False,
+    scheduled: Annotated[bool, typer.Option("--scheduled", hidden=True)] = False,
 ) -> None:
     """Make the index match your sources: add, update, and forget what was deleted.
 
@@ -284,6 +525,11 @@ def sync(
     with everything learned only from them. A source that can't be reached (unplugged drive,
     missing folder) is skipped, never wiped.
     """
+    if scheduled:  # started by `graph-me schedule`: output goes to graph-out/sync.log
+        from graph_me.setup import schedule as schedule_mod
+
+        schedule_mod.rotate_log(_ctx(ctx).out)
+        typer.echo(f"--- {datetime.now().astimezone().isoformat(timespec='seconds')}")
     _run_pipeline(
         ctx, source=source, workers=workers, forget=True, allow_mass_forget=allow_mass_forget
     )
@@ -292,6 +538,7 @@ def sync(
 def _source_summary(st, forget: bool) -> str:
     parts = [_plural(st.seen, "item")]
     for n, label in ((st.added, "new"), (st.updated, "updated"),
+                     (st.older, "older, left for a full scan"),
                      (st.forgotten if forget else 0, "forgotten"),
                      (st.blacklisted, "blacklisted"), (st.parse_errors, "unreadable"),
                      (st.flagged, "flagged as possible prompt injection")):  # fmt: skip
@@ -309,6 +556,7 @@ def _run_pipeline(
     workers: int | None,
     forget: bool,
     allow_mass_forget: bool = False,
+    since: str | None = None,
 ) -> None:
     from graph_me.pipeline import run
 
@@ -337,9 +585,10 @@ def _run_pipeline(
             )
         else:
             report = run.scan(
-                conn, c.config, only_source=source, workers=workers, progress=progress
-            )
-    except ValueError as exc:
+                conn, c.config, only_source=source, workers=workers, progress=progress,
+                since=datetime.fromisoformat(since) if since else None,
+            )  # fmt: skip
+    except (ValueError, db.RunLocked) as exc:
         conn.close()
         raise _error(str(exc)) from exc
     from graph_me import report as report_mod
@@ -864,6 +1113,8 @@ def enrich(
         report_mod.write(conn, c.out)
     except llm_mod.LLMError as exc:
         raise _error(f"model error: {exc}") from exc
+    except db.RunLocked as exc:
+        raise _error(str(exc)) from exc
     finally:
         conn.close()
 
@@ -929,6 +1180,8 @@ def ingest(
             for reason in r.rejected[:5]:
                 typer.echo(f"  rejected: {reason}", err=True)
         report_mod.write(conn, c.out)
+    except db.RunLocked as exc:
+        raise _error(str(exc)) from exc
     finally:
         conn.close()
     if failed:

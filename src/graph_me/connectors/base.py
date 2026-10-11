@@ -85,6 +85,10 @@ class Connector(Protocol):
         """Yield full items for the given ids. Ids that vanished meanwhile are skipped."""
         ...
 
+    # Optional: ``newer_than(external_id, version, cutoff) -> bool`` says the item is dated on or
+    # after ``cutoff`` (aware datetime). ``scan --since`` reads only those first; a later full
+    # scan reads the rest. Connectors without it are read in full.
+    #
     # Optional: ``excluded(external_id) -> bool`` says an id missing from ``list_ids`` still
     # exists but the config now leaves it out (noise globs, ignore marker). Sync forgets it
     # without counting it toward the mass-forget guard, which is about sources that went away.

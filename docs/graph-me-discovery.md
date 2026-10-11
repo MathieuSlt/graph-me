@@ -69,7 +69,7 @@ Principles:
 | Connectors: filesystem (text files), msgvault (mail + WhatsApp) | Native connectors, plugin packages on PyPI |
 | Tier 0 and Tier 1 | Tier 2 (full AI) |
 | User corrections (`overrides.yaml`), index freshness | Roadmap M8–M12 in the implementation plan |
-| CLI: scan, sync, enrich, where, query, ui | Scheduled sync |
+| CLI: scan, sync, enrich, where, query, ui | Scheduled sync (done after v1: `graph-me schedule`) |
 | Claude Code skill + read-only MCP server | Write actions (send email, reply on WhatsApp) |
 | FR + EN rule packs | More languages from the community |
 | Local web UI: search, graph, person page, provenance | Timeline view, blacklist editing in the UI |
@@ -298,6 +298,9 @@ Open questions:
 | Mass-forget guard | Counts only items gone from the source; files a config change now skips are forgotten without `--allow-mass-forget` (decided 2026-10-01) |
 | Corrections | The user's corrections live in `overrides.yaml`, read as the built-in source `_overrides`: each `people` entry is a contact item (so links reuse the shared-identifier merge, and facts and relations are cited `user:*` with confidence 1.0). `not_same` keeps identifiers apart in `person_for`; `reject` drops facts after every run. When `not_same` changes or a link or rejection is removed, the people involved are deleted and their items re-read. Only the CLI edits the file; MCP and the UI stay read-only (decided 2026-10-11) |
 | Index freshness | Every answer carries `index` (`last_sync_at` of the oldest source, `age_days`, `stale` after `index.stale_after_days`, default 7); the CLI warns and the MCP instructions tell agents to say so (decided 2026-10-11) |
+| First run | `init --detect` proposes sources from well-known places only (Documents, Desktop, Downloads, Obsidian vaults, `~/.msgvault`, `.vcf` files next to them) and guesses the time zone and calling code; the user confirms each. `scan --since` reads recent items first through an optional connector method `newer_than`; `sync` has no `--since`, since it must see everything to forget safely. `graph-me demo` ships English synthetic data in `graph_me/demo/` (the French test fixtures stay in `tests/`) (decided 2026-10-11) |
+| Scheduled sync | `graph-me schedule` installs a launchd agent or a systemd user timer running `sync --scheduled` (output to `graph-out/sync.log`, rotated at 1 MB); no graph-me daemon. `.run.lock` (flock) lets one scan, sync, enrich or ingest run at a time; a second one fails at once (decided 2026-10-11) |
+| App registration | `install-mcp` edits Claude Desktop, Cursor (JSON `mcpServers`) and Codex (TOML `mcp_servers`) configs with absolute paths after showing a diff, keeps a `.bak`, and uses `claude mcp add --scope user` for Claude Code (decided 2026-10-11) |
 | msgvault Gmail scope | msgvault asks for `gmail.modify` (its deletion flow); documented, graph-me stays read-only |
 
 Name alternatives checked on PyPI (free as of 2026-09-30): kithgraph, lifeweave, selfgraph, personagraph, lore-graph, ownsight, kinloom. Taken: lifegraph (so life-graph too), clawgraph (so claw-graph too).

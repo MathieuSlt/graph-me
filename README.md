@@ -48,16 +48,19 @@ What it promises:
 
 ```bash
 uv tool install --managed-python graph-me    # install the CLI (no system Python needed)
-graph-me init                                # create ~/graph-me/config.yaml
+graph-me demo                                # optional: try it on made-up data first
+graph-me init --detect                       # find your folders, mail and contacts, ask which to index
 ```
 
-List your folders, mail and contacts in `~/graph-me/config.yaml` (see
+Check `~/graph-me/config.yaml` (see
 [Quick start](https://mathieuslt.github.io/graph-me/quickstart/)), then:
 
 ```bash
-graph-me scan                                # build the index
+graph-me scan                                # build the index (`--since 90d` for a fast first pass)
 graph-me install-skill                       # teach Claude Code when to use graph-me
-claude mcp add graph-me -- graph-me mcp      # let Claude Code call graph-me's tools
+graph-me install-mcp                         # let Claude Code call graph-me's tools
+graph-me doctor                              # check the setup
+graph-me schedule install                    # optional: sync every 6 hours
 ```
 
 Then, in your AI assistant:
@@ -141,11 +144,15 @@ More in [Better results with AI](https://mathieuslt.github.io/graph-me/tier1/).
 
 | Command | What it does |
 | --- | --- |
-| `graph-me init` | Creates the config, the `graph-out/` folder and an empty index |
+| `graph-me init [--detect]` | Creates the config (found for you with `--detect`), the `graph-out/` folder and an empty index |
+| `graph-me demo` | Builds a graph from made-up data to try graph-me on |
+| `graph-me doctor` | Checks the setup and says how to fix problems |
+| `graph-me install-mcp` | Registers the MCP server with Claude Code, Claude Desktop, Cursor or Codex |
 | `graph-me where` | Shows which config and index are in use, and what they hold |
 | `graph-me install-skill` | Installs the Claude Code skill |
 | `graph-me scan` | Adds new and changed items |
 | `graph-me sync` | Adds, updates, and forgets what was deleted |
+| `graph-me schedule install` | Runs `sync` regularly (launchd or systemd, no background service of its own) |
 | `graph-me query "<words>"` | Searches everything |
 | `graph-me who "<person>"` | Shows a person's identifiers, facts and closest contacts |
 | `graph-me fact <person> <fact>` | Shows one fact and where it came from |
@@ -183,7 +190,7 @@ More in [Privacy and safety](https://mathieuslt.github.io/graph-me/privacy/).
 - Birthday rules exist for English and French messages only.
 - No OCR: scanned PDFs and photos are skipped.
 - Linux and macOS only for now.
-- `sync` runs when you run it. There is no background service.
+- `sync` runs when you run it, or on a schedule you install (`graph-me schedule install`).
 
 ---
 

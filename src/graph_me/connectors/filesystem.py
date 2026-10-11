@@ -142,6 +142,10 @@ class FilesystemConnector:
             and any((folder.parent / f).is_file() for f in PROJECT_FILES)
         )
 
+    def newer_than(self, external_id: str, version: str, cutoff: datetime) -> bool:
+        """``scan --since``: the file changed on or after ``cutoff`` (version is mtime:size)."""
+        return int(version.split(":", 1)[0]) / 1e9 >= cutoff.timestamp()
+
     def excluded(self, external_id: str) -> bool:
         """The file is still on disk, under a configured path, but the walk now skips it."""
         path = Path(external_id)

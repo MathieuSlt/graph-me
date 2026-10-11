@@ -10,12 +10,14 @@ and chats (usually archived by msgvault), and contacts. It returns cited, trust-
 
 ## 1. Check it is ready
 
-Run `graph-me where`. If it says the store or config is missing:
+Run `graph-me doctor`. It lists what is wrong and how to fix it. If the config is missing:
 
-1. `graph-me init` creates `~/graph-me/config.yaml` (or `./config.yaml` inside a graph-me clone).
-2. Ask the user which folders, mail archive (msgvault) and contacts to index, and edit the
+1. Suggest `graph-me init --detect` to the user: it finds their folders, mail archive and
+   contacts and asks about each one, so let them run it in their terminal. (`graph-me init`
+   writes a template instead.)
+2. Otherwise ask which folders, mail archive (msgvault) and contacts to index, and edit the
    `sources:` section with them. Never add a source they did not ask for.
-3. `graph-me scan`, then tell the user: this is Tier 0 (no AI). It matches words, not meaning,
+3. `graph-me scan` (`--since 90d` first on a big archive), then tell the user: this is Tier 0 (no AI). It matches words, not meaning,
    so results are less convincing until they run Tier 1 enrichment (below).
 
 `graph-me sync` later adds new items and forgets deleted ones. Only run `scan` or `sync` when the

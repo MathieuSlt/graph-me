@@ -11,6 +11,14 @@ before 1.0, minor versions may break the config or the store.
   says how someone relates to you (so "my sister's birthday" works without Tier 1), and
   `fact --set/--reject` fixes a fact. Corrections are cited as "set by you" and removing one
   undoes it. `graph-me overrides` shows them.
+- **Easier first run**: `graph-me init --detect` finds your folders, Obsidian vaults,
+  msgvault and address books and asks which to index; `graph-me scan --since 90d` reads recent
+  items first; `graph-me demo` tries graph-me on made-up data; `graph-me doctor` checks the
+  setup and says how to fix it.
+- **`graph-me install-mcp`** registers the MCP server with Claude Code, Claude Desktop, Cursor or
+  Codex.
+- **`graph-me schedule install`** syncs regularly through launchd (macOS) or a systemd user timer
+  (Linux). Only one scan, sync or enrich runs on an index at a time.
 - **Index freshness**: every answer (CLI, MCP, Markdown) says when the index was last synced,
   and warns after `index.stale_after_days` (7 by default).
 
