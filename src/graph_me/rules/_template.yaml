@@ -1,0 +1,45 @@
+# A graph-me rule pack. Copy this file to rules/<code>.yaml (for example de.yaml), next to
+# config.yaml for your own use or in src/graph_me/rules/ to contribute it, fill it in, then run
+#   graph-me rules check rules/de.yaml
+# Files whose name starts with "_" (like this one) are not loaded.
+# A pack for a language that already exists (en, fr) adds its words to the built-in ones.
+language: xx                       # ISO 639-1 code, lowercase
+
+# Frequent short words: detect the language of a text and are ignored in search queries.
+# Quote words YAML reads as something else ("on", "no", "yes"...).
+stopwords: []
+
+# Prompt-injection phrases, matched fuzzily (case, accents, spacing, scrambled inner letters).
+injection: []
+
+# A message to one person whose first words contain a greeting suggests their birthday.
+# A message with an "exclude" word (late, tomorrow...) is ignored.
+birthday:
+  greetings: []
+  exclude: []
+
+# Words naming a relation to the user ("my sister") -> relation label.
+# Labels: sibling, parent, child, spouse, partner, friend, colleague, manager, landlord, doctor, family.
+relations: {}
+
+# How to read 03/04/2026: DMY (3 April), MDY (March 4) or YMD.
+date_order: DMY
+
+# A full date a few words after one of these phrases becomes a fact on the document.
+deadlines:
+  expires: []
+  renews: []
+  due: []
+  ends: []
+
+# An amount (with a currency) a few words after one of these words becomes a fact.
+amounts:
+  quote: []
+  invoice: []
+
+# Examples are run by `graph-me rules check`: add one for each phrase.
+examples:
+  birthday: {match: [], no_match: []}
+  injection: {match: [], no_match: []}
+  values: []                       # - {text: "...", expect: {ends: "2027-06-30"}}
+  relations: {}                    # "my sister": sibling

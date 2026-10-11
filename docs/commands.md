@@ -22,6 +22,16 @@ and Downloads folders, Obsidian vaults, a msgvault archive and `.vcf` address bo
 each one, and guesses your time zone and phone country code. It reads nothing inside your
 files. `--yes` keeps everything it finds.
 
+### `rules`
+
+| Command | Meaning |
+| --- | --- |
+| `graph-me rules list` | The loaded language packs and where yours go |
+| `graph-me rules template` | Print an empty pack to start a new language from |
+| `graph-me rules check <file>` | Validate a pack and run its examples |
+
+See [Add a language](contributing-rules.md).
+
 ### `demo`
 
 `graph-me demo` builds a graph from made-up data (a lease, a car insurance renewal, a plumber's
@@ -175,6 +185,22 @@ words after a phrase like "valid until", "renews on", "due by" or "lease ends" (
 "valable jusqu'au", "échéance", "fin du bail"...), and an amount after "quote", "invoice" or
 "total due". They are marked 60% sure: check the document before relying on one. Search
 results show them too ("read in it: ends 2026-06-30").
+
+### `export bundle`
+
+`graph-me export bundle "<words>" --out <folder>` gathers what a search finds into one folder,
+for a tax return, a visa file or a move:
+
+- `files/`: copies of the files (the originals stay where they are), and the files where
+  attachments were saved;
+- `messages/`, `events/`, `contacts/`: each mail, chat message, meeting or contact as a Markdown
+  file with who, when and where it came from;
+- `INDEX.md`: everything, best match first, with links and original places.
+
+It lists what it found and asks before copying. The folder must be new or empty, and is private to
+you. Text is redacted unless you add `--reveal`; copied files are the originals. `--kind`,
+`--source`, `--since`, `--until` and `--limit` (default 100) narrow the search. It is a terminal
+command only: AI assistants and the web UI can't write files.
 
 ### `export ics`
 

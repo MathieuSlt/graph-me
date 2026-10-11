@@ -104,6 +104,12 @@ Privacy & Security > Calendars.
 graph-me treats two contacts as the same person only if they share an email or a phone number.
 Two "Sophie" stay two people.
 
+## Your rule packs
+
+`rules/` next to `config.yaml` holds your own [language packs](contributing-rules.md): a new
+language, or words added to English or French. They load on every run (or set `GRAPH_ME_RULES`
+to another folder).
+
 ## Corrections
 
 `overrides.yaml`, next to `config.yaml`, holds your corrections. The `link`, `unlink`, `relate`

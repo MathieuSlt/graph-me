@@ -1,0 +1,22 @@
+[project]
+name = "graph-me-connector-example"
+version = "0.1.0"
+description = "An example graph-me connector: notes kept in a JSON Lines file"
+requires-python = ">=3.12"
+dependencies = ["graph-me>=0.2"]
+license = "MIT"
+
+# graph-me finds connectors through this entry-point group: `type: notes-jsonl` in config.yaml
+# now uses NotesConnector.
+[project.entry-points."graph_me.connectors"]
+notes-jsonl = "graph_me_notes:NotesConnector"
+
+[dependency-groups]
+dev = ["pytest>=9.1"]
+
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/graph_me_notes"]

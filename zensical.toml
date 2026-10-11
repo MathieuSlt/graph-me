@@ -29,6 +29,8 @@ nav = [
   ] },
   { "Project" = [
     "development.md",
+    "contributing-connectors.md",
+    "contributing-rules.md",
     "changelog.md",
     { "Design: discovery" = "graph-me-discovery.md" },
     { "Design: implementation plan" = "graph-me-implementation-plan.md" },

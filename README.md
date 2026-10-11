@@ -163,6 +163,8 @@ More in [Better results with AI](https://mathieuslt.github.io/graph-me/tier1/).
 | `graph-me fact <person> <fact>` | Shows one fact and where it came from |
 | `graph-me upcoming` | Lists birthdays and deadlines coming up |
 | `graph-me export ics` | Writes them as a calendar file |
+| `graph-me export bundle "<words>" --out <folder>` | Copies what a search finds into one folder, with an index |
+| `graph-me rules check <file>` | Checks a language pack you wrote |
 | `graph-me link` / `unlink` / `relate` | Corrects who is who and how people relate to you (saved in `overrides.yaml`) |
 | `graph-me fact <person> <fact> --set/--reject <value>` | Corrects a fact |
 | `graph-me enrich` / `ingest` | Runs Tier 1 labelling and merges agent answers |
@@ -215,7 +217,9 @@ uv run graph-me where         # inside the clone, config.yaml and graph-out/ liv
 uv run --group docs zensical serve -a 127.0.0.1:8000   # preview the docs site
 ```
 
-The tests use only synthetic data from `tests/factory.py`. Design notes are in `docs/`, next to
+The tests use only synthetic data from `tests/factory.py`. To read a new source, [write a
+connector](https://mathieuslt.github.io/graph-me/contributing-connectors/); to add a language,
+[write a rule pack](https://mathieuslt.github.io/graph-me/contributing-rules/). Design notes are in `docs/`, next to
 the pages of the documentation site.
 
 ## License
