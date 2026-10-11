@@ -40,7 +40,7 @@ What it promises:
 - **Deleting means forgetting.** When you delete a file or message, the next `sync` removes it
   and everything learned only from it.
 
-> graph-me is alpha software (0.1.0). It runs on Linux and macOS. See
+> graph-me is alpha software (0.2.0). It runs on Linux and macOS. See
 > [CHANGELOG.md](https://github.com/MathieuSlt/graph-me/blob/main/CHANGELOG.md) for what changed.
 
 ---

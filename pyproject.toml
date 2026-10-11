@@ -1,6 +1,6 @@
 [project]
 name = "graph-me"
-version = "0.1.0"
+version = "0.2.0"
 description = "A local knowledge graph of your personal data (files, mail, WhatsApp) for AI agents"
 readme = "README.md"
 license = "MIT"
