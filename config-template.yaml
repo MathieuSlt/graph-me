@@ -34,6 +34,9 @@ people:
 index:
   stale_after_days: 7               # answers warn when a source was last synced longer ago than this
 
+export:
+  ics: false                        # true: rewrite graph-out/upcoming.ics (birthdays, deadlines) after every scan, for your calendar
+
 blacklist:
   paths: []                         # folders and files never to index
   contacts: []                      # emails or phone numbers: every item involving them is dropped

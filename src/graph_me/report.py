@@ -1,8 +1,9 @@
 """REPORT.md and graph.json, written to graph-out after every scan and sync.
 
 - Communities: Louvain over people, projects and documents, weighted by relation strength.
-- REPORT.md: what was indexed, who matters most, upcoming birthdays, communities, questions
-  worth asking, and the Tier 0 limits. Names only: no message text, no secrets.
+- REPORT.md: what was indexed, who matters most, upcoming birthdays and deadlines,
+  communities, questions worth asking, and the Tier 0 limits. Names only: no message text,
+  no secrets.
 - graph.json: nodes (entities) and edges (relations) for tools and the web UI.
 """
 
@@ -10,14 +11,14 @@ from __future__ import annotations
 
 import json
 import sqlite3
-from datetime import date, timedelta
+from datetime import date
 from pathlib import Path
 
 import networkx as nx
 
 TOP = 10
 MIN_COMMUNITY = 3
-BIRTHDAY_WINDOW_DAYS = 45
+UPCOMING_WINDOW_DAYS = 45
 COMMUNITY_SEED = 42  # communities are stable from one run to the next
 
 
@@ -91,22 +92,16 @@ def _top_people(conn: sqlite3.Connection) -> list[sqlite3.Row]:
     ).fetchall()
 
 
-def _upcoming_birthdays(conn: sqlite3.Connection, today: date) -> list[tuple[date, str, float]]:
-    out = []
-    for name, value, confidence in conn.execute(
-        """SELECT e.name, f.value, f.confidence FROM facts f JOIN entities e ON e.id = f.entity_id
-           WHERE f.key = 'birthday' AND e.name IS NOT NULL"""
-    ):
-        month, day = (int(x) for x in value.split("-"))
-        for year in (today.year, today.year + 1):
-            try:
-                when = date(year, month, day)
-            except ValueError:  # 29 February in a non-leap year
-                continue
-            if today <= when <= today + timedelta(days=BIRTHDAY_WINDOW_DAYS):
-                out.append((when, name, confidence))
-                break
-    return sorted(out)
+_LABELS = {"birthday": "", "anniversary": " (anniversary)", "expires": " expires",
+           "renews": " renews", "due": " is due", "ends": " ends"}  # fmt: skip
+
+
+def _upcoming(conn: sqlite3.Connection, today: date) -> list[dict]:
+    """Birthdays, anniversaries and deadlines in the next UPCOMING_WINDOW_DAYS days."""
+    from graph_me.query import graph
+
+    return [u for u in graph.upcoming(conn, today, days=UPCOMING_WINDOW_DAYS)
+            if u["entity"]["name"]]  # fmt: skip
 
 
 def build_report(conn: sqlite3.Connection, today: date | None = None) -> str:
@@ -117,7 +112,8 @@ def build_report(conn: sqlite3.Connection, today: date | None = None) -> str:
     ).fetchall()
     kinds = dict(conn.execute("SELECT kind, count(*) FROM items GROUP BY kind").fetchall())
     people = _top_people(conn)
-    birthdays = _upcoming_birthdays(conn, today)
+    upcoming = _upcoming(conn, today)
+    birthdays = [u for u in upcoming if u["key"] == "birthday"]
     communities = conn.execute(
         """SELECT c.label, count(cm.entity_id) AS size FROM communities c
            JOIN community_members cm ON cm.community_id = c.id
@@ -156,11 +152,12 @@ def build_report(conn: sqlite3.Connection, today: date | None = None) -> str:
     if people:
         lines += ["", "## People you deal with most", ""]
         lines += [f"- {p['name']} ({p['items']} items)" for p in people]
-    if birthdays:
-        lines += ["", f"## Birthdays in the next {BIRTHDAY_WINDOW_DAYS} days", ""]
+    if upcoming:
+        lines += ["", f"## Coming up in the next {UPCOMING_WINDOW_DAYS} days", ""]
         lines += [
-            f"- {when:%d %B}: {name} (confidence {confidence:.2f})"
-            for when, name, confidence in birthdays
+            f"- {date.fromisoformat(u['date']):%d %B}: {u['entity']['name']}"
+            f"{_LABELS.get(u['key'], ' ' + u['key'])} (confidence {u['confidence']:.2f})"
+            for u in upcoming
         ]
     if communities:
         lines += ["", "## Communities", ""]
@@ -168,12 +165,14 @@ def build_report(conn: sqlite3.Connection, today: date | None = None) -> str:
 
     questions = []
     if birthdays or people:
-        someone = birthdays[0][1] if birthdays else people[0]["name"]
+        someone = birthdays[0]["entity"]["name"] if birthdays else people[0]["name"]
         questions.append(f"When is {someone}'s birthday?")
     if people:
         questions.append(f"What did {people[0]['name']} send me last?")
     if folders:
         questions.append(f"Which documents are in {folders[0]['name']}?")
+    if any(u["key"] in ("expires", "renews", "due", "ends") for u in upcoming):
+        questions.append("What expires or is due in the next two months?")
     questions.append("Where is my lease?")
     lines += ["", "## Try asking your agent", ""]
     lines += [f'- "use graph-me: {q}"' for q in questions]

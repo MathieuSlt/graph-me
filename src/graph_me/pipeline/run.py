@@ -19,7 +19,7 @@ import sqlite3
 from collections.abc import Callable, Iterator
 from concurrent.futures import ProcessPoolExecutor
 from dataclasses import asdict, dataclass, field
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from pathlib import Path
 
 import yaml
@@ -29,7 +29,7 @@ from graph_me.config import BlacklistConfig, Config, SourceConfig
 from graph_me.connectors import registry
 from graph_me.connectors.base import Connector, Item, Party, SourceUnavailable
 from graph_me.pipeline import chunk, lang, parse, sanitize
-from graph_me.pipeline.tier0 import entities, facts, people
+from graph_me.pipeline.tier0 import entities, extract, facts, people
 from graph_me.pipeline.tier0 import overrides as user
 from graph_me.store import db, forget
 
@@ -69,15 +69,20 @@ class Prepared:
     risk: float = 0.0
     lang: str | None = None
     chunks: list[tuple[str, int]] = field(default_factory=list)
+    values: list[tuple[str, str, str]] = field(default_factory=list)  # deadlines, amounts
     error: str | None = None
 
 
-def _prepare(job: tuple[str | None, str | None]) -> Prepared:
-    """Worker entry point: parse (if needed), sanitize, detect language, chunk.
+Job = tuple[str | None, str | None, str | None]  # (path, text, item date as YYYY-MM-DD)
 
-    ``job`` is ``(path, text)``: exactly one is set. Top-level so it can run in a process pool.
+
+def _prepare(job: Job) -> Prepared:
+    """Worker entry point: parse (if needed), sanitize, detect language, chunk, extract values.
+
+    ``job`` is ``(path, text, day)``: one of path and text is set; ``day`` is the item's own date
+    (a deadline on that day is when it was written). Top-level so it can run in a process pool.
     """
-    path, text = job
+    path, text, day = job
     error = None
     if text is None and path:
         try:
@@ -90,6 +95,7 @@ def _prepare(job: tuple[str | None, str | None]) -> Prepared:
         risk=clean.risk_score,
         lang=lang.detect(clean.text) if clean.text else None,
         chunks=chunk.chunk(clean.text),
+        values=extract.extract(clean.text, date.fromisoformat(day) if day else None),
         error=error,
     )
 
@@ -100,7 +106,7 @@ class _Workers:
     def __init__(self, workers: int) -> None:
         self.pool = ProcessPoolExecutor(workers) if workers > 1 else None
 
-    def map(self, jobs: list[tuple[str | None, str | None]]) -> Iterator[Prepared]:
+    def map(self, jobs: list[Job]) -> Iterator[Prepared]:
         if self.pool:
             return self.pool.map(_prepare, jobs, chunksize=8)
         return map(_prepare, jobs)
@@ -145,6 +151,7 @@ class ScanReport:
     removed_sources: dict[str, int] = field(default_factory=dict)  # sync: source -> items forgotten
     failures: dict[str, str] = field(default_factory=dict)  # removed sources that were kept
     relinked: int = 0  # items re-read because overrides.yaml changed who is who
+    backfilled: int = 0  # stored items given new extraction rules (from their stored text)
     notes: list[str] = field(default_factory=list)
 
     @property
@@ -246,6 +253,7 @@ def _run(
                 "overrides.yaml changed who is who: run a scan or sync without --source to "
                 "apply it fully."
             )
+    report.backfilled = backfill_values(conn)
     sources = _sources(conn, cfg)
     if forget_missing and not only_source:
         _forget_removed_sources(conn, sources, report, allow_mass_forget)
@@ -288,6 +296,50 @@ def _run(
     finish(conn, user.rejections(fixes, ctx) if fixes else ())
     db.compact(conn)
     return report
+
+
+_RULES_META = "tier0_rules"
+
+
+def backfill_values(conn: sqlite3.Connection) -> int:
+    """Apply new or changed deadline and amount rules to items already stored.
+
+    Their text is in ``chunks``, so sources aren't read again. Contact cards, whose new fields
+    (address, anniversary, job title) come from the card itself, are marked to be read again.
+    Returns how many items were looked at; 0 when the rules didn't change.
+    """
+    current = extract.rules_version()
+    stored = db.get_meta(conn, _RULES_META)
+    if stored == current:
+        return 0
+    if stored is None and not conn.execute("SELECT 1 FROM items LIMIT 1").fetchone():
+        db.set_meta(conn, _RULES_META, current)  # a new index: items get the rules as read
+        conn.commit()
+        return 0
+    conn.execute(
+        "DELETE FROM evidence WHERE method LIKE 'rule:%.deadline' OR method LIKE 'rule:%.amount'"
+    )
+    rows = conn.execute(
+        """SELECT i.*, group_concat(c.text, ' ') AS body FROM items i
+           JOIN (SELECT item_id, text FROM chunks WHERE tier = 0 ORDER BY item_id, ord) c
+             ON c.item_id = i.id
+           WHERE i.kind IN ('file', 'email', 'message') GROUP BY i.id"""
+    ).fetchall()
+    for row in rows:
+        day = row["created_at"][:10] if row["created_at"] and row["kind"] != "file" else None
+        values = extract.extract(row["body"] or "", date.fromisoformat(day) if day else None)
+        if not values:
+            continue
+        doc = conn.execute(
+            "SELECT entity_id FROM mentions WHERE item_id = ? AND role = 'file'", (row["id"],)
+        ).fetchone()
+        item = Item(external_id=row["external_id"], version=row["version"] or "",
+                    kind=row["kind"], title=row["title"])  # fmt: skip
+        entities.value_facts(conn, row["id"], item, doc[0] if doc else None, values)
+    conn.execute("UPDATE items SET version = NULL WHERE kind = 'contact'")
+    db.set_meta(conn, _RULES_META, current)
+    conn.commit()
+    return len(rows)
 
 
 def _load_overrides(cfg: Config) -> corrections.Overrides | None:
@@ -412,7 +464,14 @@ def _scan_source(
 
     for start in range(0, len(todo), BATCH):
         batch = list(connector.fetch(todo[start : start + BATCH]))
-        jobs = [(str(i.path) if i.text is None and i.path else None, i.text) for i in batch]
+        jobs = [
+            (
+                str(i.path) if i.text is None and i.path else None,
+                i.text,
+                i.created_at.date().isoformat() if i.created_at and i.kind != "file" else None,
+            )
+            for i in batch
+        ]
         for item, prepared in zip(batch, workers.map(jobs), strict=True):
             if prepared.error:
                 stats.parse_errors += 1
@@ -485,9 +544,12 @@ def _store(
         [(iid, a.content_hash, a.filename, a.mime_type) for a in item.attachments],
     )
     if item.kind == "file":
-        entities.file_entities(conn, iid, item)
+        doc = entities.file_entities(conn, iid, item)
     else:
         people.item_people(conn, iid, item, blacklist.ctx)
+        doc = None
+    if prepared.values and item.kind in ("file", "email", "message"):
+        entities.value_facts(conn, iid, item, doc, prepared.values)
 
     if existed:
         stats.updated += 1

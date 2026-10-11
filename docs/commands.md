@@ -143,11 +143,40 @@ Add `--json` for JSON.
 ### `fact`
 
 `graph-me fact <person> <fact>` shows one fact with the items graph-me learned it from, for
-example `graph-me fact Sophie birthday`. Facts are `birthday`, `birth_year`, `nickname`,
-`organization` and `relation_to_user` (set with `relate`, or by Tier 1). Add `--json` for JSON.
+example `graph-me fact Sophie birthday`. Facts are `birthday`, `birth_year`, `anniversary`,
+`nickname`, `organization`, `job_title`, `address`, `relation_to_user` (set with `relate`, or by
+Tier 1), and `quote_amount` / `invoice_amount` (what someone quoted or billed you). Add `--json` for JSON.
 The output says when a fact has low confidence.
 
-With `--set <value>` or `--reject <value>`, it saves a correction instead (see below):
+### `upcoming`
+
+`graph-me upcoming` lists what is coming up in the next 60 days: birthdays and anniversaries,
+and deadlines read in your documents and messages: when something **expires**, **renews**, is
+**due** or **ends**. Each line says how sure graph-me is and where it read it.
+
+| Option | Meaning |
+| --- | --- |
+| `--days <n>` | How far ahead (default 60, up to 366) |
+| `--kind dates\|deadlines` | Only birthdays and anniversaries, or only deadlines (or one key, like `renews`) |
+| `--json` | Print JSON |
+
+Deadlines and amounts come from rules, without AI: a full date (day, month and year) a few
+words after a phrase like "valid until", "renews on", "due by" or "lease ends" (French:
+"valable jusqu'au", "échéance", "fin du bail"...), and an amount after "quote", "invoice" or
+"total due". They are marked 60% sure: check the document before relying on one. Search
+results show them too ("read in it: ends 2026-06-30").
+
+### `export ics`
+
+`graph-me export ics` writes `graph-out/upcoming.ics`: birthdays and anniversaries as yearly
+events, deadlines as all-day events with a reminder a week before. Import it in your calendar
+app, or subscribe to the file. With `export: {ics: true}` in `config.yaml`, every `scan` and
+`sync` rewrites it. `--out <file>` writes it elsewhere. Events hold a name and what happens
+("Alex Taylor: birthday", "lease_2025.pdf: ends"), no message text.
+
+### Corrections from `fact`
+
+With `--set <value>` or `--reject <value>`, `fact` saves a correction instead (see below):
 `graph-me fact Sophie birthday --reject 07-04`.
 
 `query`, `who` and `fact` warn when the index was last synced more than

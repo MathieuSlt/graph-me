@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% from "_macros.html" import entity_link, confidence, evidence_list %}
+{% block title %}Coming up · graph-me{% endblock %}
+{% block main %}
+<h1>Coming up</h1>
+<form class="filters" method="get" action="/upcoming">
+  <label>Next <select name="days">
+    {% for n in (30, 60, 90, 180, 365) %}<option value="{{ n }}" {% if n == days %}selected{% endif %}>{{ n }} days</option>{% endfor %}
+  </select></label>
+  <label>Show <select name="kind">
+    <option value="" {% if not kind %}selected{% endif %}>everything</option>
+    <option value="dates" {% if kind == "dates" %}selected{% endif %}>birthdays and anniversaries</option>
+    <option value="deadlines" {% if kind == "deadlines" %}selected{% endif %}>deadlines</option>
+  </select></label>
+  <button type="submit">Show</button>
+</form>
+{% if result.index.stale %}<p class="warn-text">The index was last synced {{ result.index.age_days }} days ago: recent items may be missing.</p>{% endif %}
+{% if not result.results %}
+<p class="muted">Nothing in the next {{ days }} days.</p>
+{% else %}
+<table class="grid">
+  <thead><tr><th>When</th><th>What</th><th>Who or which document</th><th>Sure</th></tr></thead>
+  <tbody>
+  {% for u in result.results %}
+    <tr>
+      <td>{{ u.date }}<br><span class="muted small">{% if u.in_days == 0 %}today{% else %}in {{ u.in_days }} day{{ "s" if u.in_days != 1 }}{% endif %}</span></td>
+      <td>{{ u.key|replace("_", " ") }}</td>
+      <td>{{ entity_link(u.entity) }}{% if u.evidence %}{{ evidence_list(u.evidence) }}{% endif %}</td>
+      <td>{{ confidence(u.confidence) }}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+<p class="muted small">Deadlines are read in your documents by rules (Tier 0), so check the source before relying on one. <code>graph-me export ics</code> puts all of this in your calendar.</p>
+{% endif %}
+{% endblock %}

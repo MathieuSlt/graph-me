@@ -1,4 +1,5 @@
-"""Language rule packs (rules/<lang>.yaml): stopwords, injection phrases, fact rules."""
+"""Language rule packs (rules/<lang>.yaml): stopwords, injection phrases, fact rules
+(birthdays, relations, deadlines and amounts)."""
 
 from __future__ import annotations
 
@@ -17,6 +18,9 @@ class RulePack:
     birthday_greetings: tuple[str, ...] = field(default=())
     birthday_exclude: tuple[str, ...] = field(default=())
     relations: dict[str, tuple[str, ...]] = field(default_factory=dict)
+    date_order: str = "DMY"  # how to read 03/04/2026
+    deadlines: dict[str, tuple[str, ...]] = field(default_factory=dict)  # key -> phrases
+    amounts: dict[str, tuple[str, ...]] = field(default_factory=dict)
 
 
 @cache
@@ -38,6 +42,9 @@ def load_all() -> dict[str, RulePack]:
             birthday_greetings=tuple(raw.get("birthday", {}).get("greetings", [])),
             birthday_exclude=tuple(raw.get("birthday", {}).get("exclude", [])),
             relations={k: tuple(v) for k, v in raw.get("relations", {}).items()},
+            date_order=raw.get("date_order", "DMY"),
+            deadlines={k: tuple(v) for k, v in raw.get("deadlines", {}).items()},
+            amounts={k: tuple(v) for k, v in raw.get("amounts", {}).items()},
         )
     return packs
 

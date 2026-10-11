@@ -35,3 +35,19 @@ relations:
   landlord: [landlord, landlady]
   doctor: [doctor, gp, physician]
   family: [family, cousin, uncle, aunt, grandmother, grandfather, nephew, niece]
+
+# Dates: how to read 03/04/2026 (MDY: March 4).
+date_order: MDY
+
+# A date within a few words after one of these phrases becomes a cited fact on the document
+# ("valid until 31 March 2027" -> expires: 2027-03-31), listed by `graph-me upcoming`.
+deadlines:
+  expires: [expires, expires on, expiry date, expiration date, valid until, valid through, valid thru]
+  renews: [renews on, renewal date, renews automatically on, auto-renews on, policy renews]
+  due: [due date, due by, due on, payment due, pay by, deadline]
+  ends: [end date, ends on, term ends, lease ends, contract ends]
+
+# An amount within a few words after one of these words becomes a cited fact.
+amounts:
+  quote: [quote, quotation, estimate]
+  invoice: [invoice, amount due, total due, balance due]

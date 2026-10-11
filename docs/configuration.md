@@ -95,6 +95,12 @@ If the file has an error, `scan` and `sync` say so and keep your previous correc
 | --- | --- |
 | `index.stale_after_days` | Answers say the index may be out of date when a source was last synced longer ago than this (default 7) |
 
+## Export
+
+| Key | Meaning |
+| --- | --- |
+| `export.ics` | `true` rewrites `graph-out/upcoming.ics` (birthdays, anniversaries, deadlines) after every scan and sync, for your calendar app (default `false`) |
+
 ## Blacklist
 
 | Key | Meaning |

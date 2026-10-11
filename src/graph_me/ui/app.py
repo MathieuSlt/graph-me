@@ -152,6 +152,16 @@ def build_app(service: Service, token: str) -> Starlette:
     async def neighbours_api(request: Request) -> Response:
         return JSONResponse(service.neighbourhood(request.path_params["eid"]))
 
+    async def upcoming(request: Request) -> Response:
+        try:
+            days = min(max(int(request.query_params.get("days", 60)), 1), 366)
+        except ValueError:
+            days = 60
+        kind = request.query_params.get("kind") or None
+        kind = kind if kind in ("dates", "deadlines") else None
+        return page(request, "upcoming.html", days=days, kind=kind,
+                    result=service.upcoming(days=days, kind=kind))  # fmt: skip
+
     async def status(request: Request) -> Response:
         return page(request, "status.html", s=service.status())
 
@@ -167,6 +177,7 @@ def build_app(service: Service, token: str) -> Starlette:
             Route("/graph", graph_page),
             Route("/api/graph", graph_api),
             Route("/api/graph/{eid}", neighbours_api),
+            Route("/upcoming", upcoming),
             Route("/status", status),
             Mount("/static", StaticFiles(directory=HERE / "static"), name="static"),
         ],

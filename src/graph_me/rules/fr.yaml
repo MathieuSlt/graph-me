@@ -42,3 +42,19 @@ relations:
   landlord: [propriétaire, proprietaire, proprio, bailleur]
   doctor: [médecin, medecin, docteur, généraliste]
   family: [famille, cousin, cousine, oncle, tante, grand-mère, grand-père, neveu, nièce]
+
+# Dates : comment lire 03/04/2026 (DMY : 3 avril).
+date_order: DMY
+
+# Une date quelques mots après une de ces expressions devient un fait cité sur le document
+# ("valable jusqu'au 31 mars 2027" -> expires: 2027-03-31), listé par `graph-me upcoming`.
+deadlines:
+  expires: [expire le, expiration le, date d'expiration, valable jusqu'au, valide jusqu'au, date de validité]
+  renews: [renouvellement le, date de renouvellement, renouvelé le, reconduit le, reconduction le]
+  due: [échéance, date d'échéance, à payer avant, à régler avant, date limite, payable avant]
+  ends: [fin de contrat, fin du bail, se termine le, prend fin le, date de fin]
+
+# Un montant quelques mots après un de ces mots devient un fait cité.
+amounts:
+  quote: [devis, estimation]
+  invoice: [facture, montant dû, total à payer, reste à payer, net à payer]

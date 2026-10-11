@@ -219,3 +219,23 @@ def test_graph_page_loads_its_scripts(full):
     for imported in re.findall(r'from "(/static/[^"]+)"', module):
         assert full.get(imported).status_code == 200, imported
     assert json.loads(full.get("/api/graph").text)["communities"] is not None
+
+
+def test_upcoming_page(tmp_path):
+    from graph_me import config
+    from graph_me import demo as demo_mod
+
+    cfg_path = demo_mod.build(tmp_path / "demo")
+    cfg = config.load_config(cfg_path)
+    out = config.ensure_output(config.resolve_output(None, cfg))
+    client = logged_in(make_client(cfg, out / config.DB_NAME))
+    page = client.get("/upcoming")
+    assert page.status_code == 200
+    assert "vehicle_policy_renewal.docx" in page.text and "Alex Taylor" in page.text
+    assert 'aria-current="page">Coming up' in page.text
+    only_dates = client.get("/upcoming?kind=dates&days=30")
+    assert "Alex Taylor" in only_dates.text and "vehicle_policy" not in only_dates.text
+    assert client.get("/upcoming?days=nope").status_code == 200
+    assert client.post("/upcoming").status_code == 405
+    results = client.get("/search?q=plumber+quote").text
+    assert "quote amount: <strong>480 USD</strong>" in results

@@ -76,6 +76,12 @@ def _names(card: dict[str, list[str]]) -> str | None:
     return None
 
 
+def _address(value: str) -> str | None:
+    """ADR (PO box;extended;street;locality;region;code;country) as one line."""
+    parts = [_unescape(p).strip() for p in re.split(r"(?<!\\);", value)]
+    return ", ".join(p.replace("\n", " ") for p in parts if p) or None
+
+
 def card_to_contact(card: dict[str, list[str]]) -> Contact:
     def values(prop: str) -> list[str]:
         out = []
@@ -90,6 +96,16 @@ def card_to_contact(card: dict[str, list[str]]) -> Contact:
         phones=[_unescape(v).strip() for v in card.get("TEL", []) if v.strip()],
         birthday=norm_bday(card["BDAY"][0]) if card.get("BDAY") else None,
         org=_unescape(card["ORG"][0]).replace(";", " ").strip() if card.get("ORG") else None,
+        title=_unescape(card["TITLE"][0]).strip() or None if card.get("TITLE") else None,
+        addresses=[a for a in (_address(v) for v in card.get("ADR", [])) if a],
+        anniversary=next(
+            (
+                norm_bday(v)
+                for v in card.get("ANNIVERSARY", []) + card.get("X-ANNIVERSARY", [])
+                if norm_bday(v)
+            ),
+            None,
+        ),  # fmt: skip
         note=_unescape(card["NOTE"][0]).strip() if card.get("NOTE") else None,
     )
 
@@ -101,9 +117,14 @@ def contact_text(c: Contact) -> str:
         lines.append("Surnom / nickname: " + ", ".join(c.nicknames))
     if c.org:
         lines.append(c.org)
+    if c.title:
+        lines.append(c.title)
+    lines += c.addresses
     lines += c.emails + c.phones
     if c.birthday:
         lines.append(f"Anniversaire / birthday: {c.birthday}")
+    if c.anniversary:
+        lines.append(f"Anniversary: {c.anniversary}")
     if c.note:
         lines.append(c.note)
     return "\n".join(line for line in lines if line)

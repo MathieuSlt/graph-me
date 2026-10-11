@@ -27,7 +27,8 @@ from graph_me import rules
 from graph_me.pipeline.tier0.identity import norm_bday
 
 SOURCE = "_overrides"  # the built-in source reading overrides.yaml
-FACT_KEYS = ("birthday", "birth_year", "nickname", "organization")
+FACT_KEYS = ("birthday", "birth_year", "anniversary", "nickname", "organization", "job_title",
+             "address")  # fmt: skip
 HEADER = (
     "# graph-me: your corrections. Edited by `graph-me link`, `unlink`, `relate` and\n"
     "# `fact --set/--reject`; you can edit it by hand too. Run `graph-me sync` to apply.\n"
@@ -127,11 +128,11 @@ def check_fact(key: str, value: str) -> str:
         return value
     if key not in FACT_KEYS:
         raise ValueError(f"unknown fact {key!r} (known: {', '.join(FACT_KEYS)})")
-    if key == "birthday":
+    if key in ("birthday", "anniversary"):
         value = value.strip()
         day = norm_bday("--" + value if len(value) == 5 else value)  # MM-DD or YYYY-MM-DD
         if day is None:
-            raise ValueError(f"birthday {value!r}: use MM-DD or YYYY-MM-DD")
+            raise ValueError(f"{key} {value!r}: use MM-DD or YYYY-MM-DD")
         return day[-5:]
     if key == "birth_year" and not (value.isdigit() and len(value) == 4):
         raise ValueError(f"birth_year {value!r}: use four digits, e.g. 1990")

@@ -167,6 +167,9 @@ def render_markdown(result: dict) -> str:
             lines.append(f'came with: "{_fence(origin["title"] or "")}" from {origin["from"]}')
         for copy in item.get("saved_as", []):
             lines.append(f"attachment saved as: `{copy['path']}`")
+        if item.get("values"):
+            found = ", ".join(f"{v['key']}: {v['value']}" for v in item["values"])
+            lines.append(f"read in it (rules, check the text): {found}")
         lines.append(
             f'<data source="{item["source"]}" trust="{item["trust"]}" risk="{item["risk"]}">'
         )

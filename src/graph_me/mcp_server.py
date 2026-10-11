@@ -83,7 +83,9 @@ def build_server(service: Service) -> MCPServer:
     @server.tool(annotations=_READ_ONLY)
     def get_fact(who: str, key: str) -> dict:
         """One fact about a person, with confidence and evidence. key: birthday, birth_year,
-        nickname, organization."""
+        anniversary, nickname, organization, job_title, address, relation_to_user,
+        quote_amount, invoice_amount. Deadlines of documents come with `search` results
+        (`values`) and from `upcoming`."""
         return service.get_fact(who, key)
 
     @server.tool(annotations=_READ_ONLY)
@@ -97,6 +99,13 @@ def build_server(service: Service) -> MCPServer:
     def related(who: str, limit: int = 10) -> dict:
         """People and things most connected to a person (who wrote to whom, how often)."""
         return service.related(who, limit=min(limit, 50))
+
+    @server.tool(annotations=_READ_ONLY)
+    def upcoming(days: int = 60, kind: str | None = None) -> dict:
+        """What is coming up in the next `days` days: birthdays and anniversaries, and
+        deadlines found in documents and messages (expires, renews, due, ends), each with the
+        item it came from. kind: dates (birthdays, anniversaries) | deadlines | one key."""
+        return service.upcoming(days=max(1, min(days, 366)), kind=kind)
 
     @server.tool(annotations=_READ_ONLY)
     def get_item(item_id: str) -> dict:

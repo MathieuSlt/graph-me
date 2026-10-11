@@ -73,5 +73,6 @@ def test_birthday_on_29_february_is_skipped_in_other_years(conn):
     conn.execute(
         "INSERT INTO facts(entity_id, key, value, confidence) VALUES ('p', 'birthday', '02-29', 0.9)"
     )
-    assert report._upcoming_birthdays(conn, date(2027, 2, 20)) == []
-    assert report._upcoming_birthdays(conn, date(2028, 2, 20))[0][1] == "Leap"
+    assert report._upcoming(conn, date(2027, 2, 20)) == []
+    [leap] = report._upcoming(conn, date(2028, 2, 20))
+    assert (leap["entity"]["name"], leap["date"]) == ("Leap", "2028-02-29")
