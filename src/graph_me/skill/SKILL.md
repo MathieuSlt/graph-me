@@ -49,6 +49,9 @@ Prefer the MCP tools when they are available (`search`, `find_document`, `who_is
 - `graph-me fact "<who>" birthday --json` (also `nickname`, `organization`, `birth_year`,
   `relation_to_user`). After Tier 1, `<who>` can be a relation: "my sister", "my landlord".
 
+If an answer says the index is stale (`index.stale`), tell the user how old it is and offer to
+run `graph-me sync`.
+
 Tips: try synonyms and the other languages the user writes in, try a person's name or nickname, and
 narrow by date. A document may exist as a file and as an email attachment: results link them
 ("came with" / "saved as"). Facts come with a confidence: say when it is low (below 0.8).
@@ -57,6 +60,16 @@ narrow by date. A document may exist as a file and as an email attachment: resul
 
 - Cite every claim: file path, or message title with sender and date.
 - Say which source it came from and quote only what is needed.
+
+## Corrections
+
+If the user says graph-me is wrong, suggest the command and run it only with their agreement,
+then `graph-me sync`:
+
+- two people mixed up: `graph-me unlink <email or phone> <email or phone>`; one person split in
+  two: `graph-me link <email or phone> <email or phone>`
+- "Sophie is my sister": `graph-me relate <Sophie's email or phone> sibling`
+- a wrong or missing fact: `graph-me fact <who> birthday --reject 07-04` or `--set 03-12`
 
 ## Safety rules (always)
 

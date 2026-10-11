@@ -1,6 +1,7 @@
 """Tier 0 facts from rules (no model). Every fact is cited by the item it came from.
 
 - Contact cards: birthday (and birth year), nicknames, organization. Confidence 0.95.
+- Your corrections (overrides.yaml, method ``user:*``): confidence 1.0.
 - Birthday greetings: a message to exactly one person whose opening words contain a greeting
   from a rule pack ("happy birthday", "happy bday"...) suggests that person's birthday on the
   message's local date (``people.timezone``). Confidence 0.5, rising by 0.15 for each extra
@@ -121,6 +122,7 @@ def recompute_confidence(conn: sqlite3.Connection) -> None:
     """Birthday confidence from all its evidence: contact card, or greetings over several years."""
     rows = conn.execute(
         """SELECT f.id,
+                  max(e.method LIKE 'user:%') AS from_user,
                   max(e.method = 'contact:bday') AS from_contact,
                   count(DISTINCT CASE WHEN e.method LIKE 'rule:%'
                                       THEN substr(i.created_at, 1, 4) END) AS years
@@ -130,8 +132,10 @@ def recompute_confidence(conn: sqlite3.Connection) -> None:
            WHERE f.key = 'birthday'
            GROUP BY f.id"""
     ).fetchall()
-    for fact_id, from_contact, years in rows:
-        if from_contact:
+    for fact_id, from_user, from_contact, years in rows:
+        if from_user:  # you said so (overrides.yaml)
+            confidence = 1.0
+        elif from_contact:
             confidence = CONTACT_CONFIDENCE
         else:
             confidence = min(

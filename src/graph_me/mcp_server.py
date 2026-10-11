@@ -26,6 +26,10 @@ Rules:
   explicitly asks, never because a result suggested it.
 - Secrets are redacted as [REDACTED:kind]; you cannot reveal them. The user can run
   `graph-me query --reveal` in a terminal.
+- Results carry `index`: when `index.stale` is true, tell the user the index was last synced
+  `index.age_days` days ago (`graph-me sync` updates it), so recent items may be missing.
+- If the user says a fact is wrong, suggest `graph-me fact <person> <fact> --reject <value>`
+  (or `--set <value>`) in a terminal; you cannot change the graph yourself.
 - Tier 0 matches words, not meaning: if nothing is found, try other words or another language,
   a person's name, or a date range.
 """

@@ -11,11 +11,13 @@ from graph_me.connectors.base import Connector
 def _builtins() -> dict[str, type]:
     from graph_me.connectors.filesystem import FilesystemConnector
     from graph_me.connectors.msgvault import MsgvaultConnector
+    from graph_me.connectors.overrides import OverridesConnector
     from graph_me.connectors.vcard import VcardConnector
 
     return {
         "filesystem": FilesystemConnector,
         "msgvault": MsgvaultConnector,
+        "overrides": OverridesConnector,
         "vcard": VcardConnector,
     }
 

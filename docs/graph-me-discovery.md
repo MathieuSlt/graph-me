@@ -68,6 +68,7 @@ Principles:
 | --- | --- |
 | Connectors: filesystem (text files), msgvault (mail + WhatsApp) | Native connectors, plugin packages on PyPI |
 | Tier 0 and Tier 1 | Tier 2 (full AI) |
+| User corrections (`overrides.yaml`), index freshness | Roadmap M8–M12 in the implementation plan |
 | CLI: scan, sync, enrich, where, query, ui | Scheduled sync |
 | Claude Code skill + read-only MCP server | Write actions (send email, reply on WhatsApp) |
 | FR + EN rule packs | More languages from the community |
@@ -295,6 +296,8 @@ Open questions:
 | Ignore marker | A `.graph-me-ignore` file skips its folder unless that folder is a configured path; `make_fixtures.py` puts one on the generated fixtures (decided 2026-10-01) |
 | Web UI | Starlette + Jinja + htmx + Sigma.js, front-end libraries vendored (no CDN, works offline, no JS build). Token from the startup URL becomes an HttpOnly SameSite=Strict cookie; Host header checked against DNS rebinding; strict CSP; GET only; no `reveal`. Graph laid out in the browser with ForceAtlas2, "me" left out of the layout and hidden by default (decided 2026-10-01) |
 | Mass-forget guard | Counts only items gone from the source; files a config change now skips are forgotten without `--allow-mass-forget` (decided 2026-10-01) |
+| Corrections | The user's corrections live in `overrides.yaml`, read as the built-in source `_overrides`: each `people` entry is a contact item (so links reuse the shared-identifier merge, and facts and relations are cited `user:*` with confidence 1.0). `not_same` keeps identifiers apart in `person_for`; `reject` drops facts after every run. When `not_same` changes or a link or rejection is removed, the people involved are deleted and their items re-read. Only the CLI edits the file; MCP and the UI stay read-only (decided 2026-10-11) |
+| Index freshness | Every answer carries `index` (`last_sync_at` of the oldest source, `age_days`, `stale` after `index.stale_after_days`, default 7); the CLI warns and the MCP instructions tell agents to say so (decided 2026-10-11) |
 | msgvault Gmail scope | msgvault asks for `gmail.modify` (its deletion flow); documented, graph-me stays read-only |
 
 Name alternatives checked on PyPI (free as of 2026-09-30): kithgraph, lifeweave, selfgraph, personagraph, lore-graph, ownsight, kinloom. Taken: lifegraph (so life-graph too), clawgraph (so claw-graph too).

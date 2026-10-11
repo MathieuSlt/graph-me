@@ -136,6 +136,7 @@ def contact_candidates(
                     WHERE c.item_id = i.id AND c.tier = 0) AS card
             FROM items i
             WHERE i.kind = 'contact' AND i.tier < {TIER}{where}
+              AND i.source_id != '_overrides'
               AND i.id NOT IN (SELECT m.item_id FROM mentions m JOIN aliases a
                                ON a.entity_id = m.entity_id WHERE a.kind = 'role')
             ORDER BY i.title""",

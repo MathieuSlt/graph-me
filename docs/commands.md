@@ -88,8 +88,41 @@ Add `--json` for JSON.
 
 `graph-me fact <person> <fact>` shows one fact with the items graph-me learned it from, for
 example `graph-me fact Sophie birthday`. Facts are `birthday`, `birth_year`, `nickname`,
-`organization`, and after Tier 1 `relation_to_user`. Add `--json` for JSON. The output says when
-a fact has low confidence.
+`organization` and `relation_to_user` (set with `relate`, or by Tier 1). Add `--json` for JSON.
+The output says when a fact has low confidence.
+
+With `--set <value>` or `--reject <value>`, it saves a correction instead (see below):
+`graph-me fact Sophie birthday --reject 07-04`.
+
+`query`, `who` and `fact` warn when the index was last synced more than
+`index.stale_after_days` ago (7 by default). MCP answers carry the same information in `index`.
+
+## Correct
+
+graph-me can be wrong: two people merged into one, a birthday taken from a late wish, a sister
+it can't recognize. These commands save your corrections in `overrides.yaml`, next to
+`config.yaml`. The next `scan` or `sync` applies them. graph-me reads that file like a source:
+each correction is cited as "set by you", and removing it undoes it. A person can be named by
+email, phone number, or a name that matches exactly one person.
+
+| Command | What it says |
+| --- | --- |
+| `graph-me link <person> <person>...` | These emails or phone numbers are one person |
+| `graph-me unlink <person> <person>...` | These are different people, even if a contact card lists them together |
+| `graph-me relate <person> <relation>` | How they relate to you (`sibling`, `parent`, `spouse`, `landlord`...), so "my sister" finds them without Tier 1. `--remove` forgets it. |
+| `graph-me fact <person> <fact> --set <value>` | Know this value (confidence 100%) |
+| `graph-me fact <person> <fact> --reject <value>` | This value is wrong: drop it, now and after every re-read |
+| `graph-me overrides` | Show your corrections and where they are saved |
+
+```bash
+graph-me relate sophie@example.com sibling
+graph-me unlink sophie@work.example sophie@example.com
+graph-me sync
+graph-me fact "my sister" birthday
+```
+
+`unlink`, and removing a link or a rejection, are applied fully by a `scan` or `sync` without
+`--source`: graph-me rebuilds the people involved from their items.
 
 ## AI enrichment
 

@@ -29,6 +29,11 @@ people:
   me: []                            # your own emails and phone numbers, if a source can't tell which messages are yours
   timezone: null                    # e.g. America/New_York; decides which day a message was sent (default: this computer's)
 
+# overrides: overrides.yaml        # your corrections (graph-me link, relate, fact --set/--reject); null turns them off
+
+index:
+  stale_after_days: 7               # answers warn when a source was last synced longer ago than this
+
 blacklist:
   paths: []                         # folders and files never to index
   contacts: []                      # emails or phone numbers: every item involving them is dropped

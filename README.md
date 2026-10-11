@@ -149,6 +149,8 @@ More in [Better results with AI](https://mathieuslt.github.io/graph-me/tier1/).
 | `graph-me query "<words>"` | Searches everything |
 | `graph-me who "<person>"` | Shows a person's identifiers, facts and closest contacts |
 | `graph-me fact <person> <fact>` | Shows one fact and where it came from |
+| `graph-me link` / `unlink` / `relate` | Corrects who is who and how people relate to you (saved in `overrides.yaml`) |
+| `graph-me fact <person> <fact> --set/--reject <value>` | Corrects a fact |
 | `graph-me enrich` / `ingest` | Runs Tier 1 labelling and merges agent answers |
 | `graph-me ui` | Starts the local web UI |
 | `graph-me mcp` | Starts the MCP server (your AI app runs it for you) |

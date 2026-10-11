@@ -14,6 +14,7 @@
   <ul>
   {% for ev in evidence %}
     <li><a href="/item/{{ ev.id }}">{{ ev.title or "(untitled)" }}</a>
+      {% if ev.method.startswith("user:") %}<span class="badge" title="from overrides.yaml">set by you</span>{% endif %}
       <span class="muted small">{{ ev.kind }} · {{ ev.source }} · {{ date(ev.date) }} · {{ ev.method }}</span></li>
   {% endfor %}
   </ul>

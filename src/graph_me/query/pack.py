@@ -137,6 +137,10 @@ def _fence(text: str) -> str:
 def render_markdown(result: dict) -> str:
     """A context pack as Markdown for agents: every snippet is wrapped in a <data> tag."""
     lines = [f"> {result['notice']}", ""]
+    index = result.get("index") or {}
+    if index.get("stale"):
+        lines[1:1] = [f"> The index was last synced {index['age_days']} days ago: recent items "
+                      "may be missing (`graph-me sync`).", ""]  # fmt: skip
     for person in result.get("facts", []):
         entity = person["entity"]
         label = entity["name"] or next((a["value"] for a in entity["aliases"]), entity["id"])

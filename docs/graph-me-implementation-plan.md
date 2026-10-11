@@ -436,4 +436,16 @@ Seven phases, each closed by a test-backed gate
  └────────────────────────────────────────────────────────────┘
 ```
 
+After 0.1.0, six more milestones come from a review of user workflows (first run, stale
+answers, wrong answers, life admin, trust and control):
+
+| Milestone | Release | Scope | Status |
+| --- | --- | --- | --- |
+| M7 · Correct answers | 0.2 | `overrides.yaml` (link, unlink, relate, set and reject facts) as the `_overrides` source; index freshness in every answer | done |
+| M8 · First run | 0.2 | `init --detect`, `scan --since`, `doctor`, `install-mcp --client`, `schedule` (launchd / systemd user unit) with a run lock, `graph-me demo` | |
+| M9 · Upcoming | 0.3 | Tier 0 deadline and amount rules, more vCard fields, `upcoming` (CLI, MCP, UI, REPORT.md), `.ics` export | |
+| M10 · Control | 0.3 | Agent activity log (`graph-me log`, UI page), profiles that scope MCP and the UI to some sources | |
+| M11 · More data | 0.4 | `[ocr]` extra (RapidOCR) for scanned PDFs, `ics` calendar connector, `last_contact`, threads and topic timelines, `.enex`, CSV headers in chunks | |
+| M12 · Ecosystem | 0.5 | `export bundle`, connector contract kit and example plugin, rule-pack kit with examples and user packs | |
+
 M4 is the first usable point: the v1 demo works on the synthetic fixture at Tier 0. No dates are set yet; add them once the pace of work is known.
