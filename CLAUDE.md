@@ -4,7 +4,7 @@
 
 **graph-me** (working name): an open-source (MIT) Python tool that builds a local knowledge graph of a person's own data (files, mail, WhatsApp) so an AI agent can query it. Think graphify, but for personal data. You invoke it from an agent with "use graph-me".
 
-Status: M0, M1 (Tier 0 on files), M2 (msgvault, vCard, people, birthday facts) M3 (sync and forget), M4 (MCP server, skill, REPORT.md) and M5 (Tier 1: labels + embeddings, no NER yet) are done. M6 is in progress: web UI and benchmark script done; 0.1.0 is released (`.github/workflows/release.yml`: push a `v*` tag to publish to PyPI by trusted publishing). Roadmap M7–M12 is in the implementation plan; M7 (corrections in `overrides.yaml`, index freshness) is done.
+Status: M0, M1 (Tier 0 on files), M2 (msgvault, vCard, people, birthday facts) M3 (sync and forget), M4 (MCP server, skill, REPORT.md) and M5 (Tier 1: labels + embeddings, no NER yet) are done. M6 is in progress: web UI and benchmark script done; 0.1.0 is released (`.github/workflows/release.yml`: push a `v*` tag to publish to PyPI by trusted publishing). Roadmap M7–M12 is in the implementation plan; M7 (corrections in `overrides.yaml`, index freshness) and M8 (`init --detect`, `scan --since`, `doctor`, `install-mcp`, `schedule`, `demo`, run lock) are done.
 - **Open source, English only**: docs, CLI, UI, examples and placeholders are in English and never refer to the maintainer's own data. French appears only in the French rule pack and the synthetic test fixtures that exercise it. Development plan: milestones M0–M6 in `docs/graph-me-implementation-plan.md`.
 
 ## Source of truth
@@ -44,16 +44,18 @@ Read the relevant doc before implementing a feature. If a decision changes, upda
 - New sources are connectors implementing `list_ids()` + `fetch()` (see the plan). Core logic computes the diffs, so connectors never delete anything themselves.
 - Language rules live in `rules/<lang>.yaml` (FR + EN in v1), not in code.
 - Target Linux + macOS.
+- The demo data (`graph_me/demo/`) is English and ships in the wheel; the FR/EN test fixtures stay in `tests/factory.py`, which reuses the file writers in `graph_me/demo/formats.py`.
 
 ## Commands
 
 ```
-graph-me init | where | install-skill | scan | sync [--source] | report
+graph-me init [--detect] | where | doctor | demo | install-skill | install-mcp
+graph-me scan [--since] | sync [--source] | schedule install|status|remove | report
 graph-me query | who | fact [--set|--reject] | link | unlink | relate | overrides
 graph-me enrich [--llm agent|ollama|anthropic|openai_compat] | ingest | ui | mcp
 ```
 
-Implemented so far: `init`, `where`, `install-skill`, `scan` and `sync` (Tier 0: filesystem, msgvault, vcard), `query [--format text|json|markdown]`, `who`, `fact`, `link`, `unlink`, `relate`, `overrides`, `mcp`, `report`, `enrich`, `ingest`, `ui`. The others exit with code 2 and name the milestone that brings them.
+Implemented so far: `init`, `where`, `doctor`, `demo`, `install-skill`, `install-mcp`, `schedule`, `scan` and `sync` (Tier 0: filesystem, msgvault, vcard), `query [--format text|json|markdown]`, `who`, `fact`, `link`, `unlink`, `relate`, `overrides`, `mcp`, `report`, `enrich`, `ingest`, `ui`. The others exit with code 2 and name the milestone that brings them.
 
 Dev:
 

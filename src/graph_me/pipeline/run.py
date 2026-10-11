@@ -49,6 +49,7 @@ class SourceStats:
     parse_errors: int = 0
     flagged: int = 0  # items with a non-zero injection risk score
     forgotten: int = 0  # sync: items gone from the source, removed from the graph
+    older: int = 0  # scan --since: items left for a later full scan
     errors: list[str] = field(default_factory=list)  # unreadable items
     failure: str | None = None  # the whole source was skipped (unavailable, guard...)
 
@@ -180,6 +181,7 @@ def apply_blacklist(
     return removed
 
 
+@db.locked
 def scan(
     conn: sqlite3.Connection,
     cfg: Config,
@@ -187,11 +189,18 @@ def scan(
     only_source: str | None = None,
     workers: int | None = None,
     progress: Progress | None = None,
+    since: datetime | None = None,
 ) -> ScanReport:
-    """Add new items and update changed ones. Never forgets items missing from a source."""
-    return _run(conn, cfg, only_source=only_source, workers=workers, progress=progress)
+    """Add new items and update changed ones. Never forgets items missing from a source.
+
+    ``since`` (aware datetime): read only items dated on or after it, where the connector can
+    tell (``newer_than``), so a first scan gives answers fast. A later full scan reads the rest.
+    """
+    return _run(conn, cfg, only_source=only_source, workers=workers, progress=progress,
+                since=since)  # fmt: skip
 
 
+@db.locked
 def sync(
     conn: sqlite3.Connection,
     cfg: Config,
@@ -222,6 +231,7 @@ def _run(
     progress: Progress | None,
     forget_missing: bool = False,
     allow_mass_forget: bool = False,
+    since: datetime | None = None,
 ) -> ScanReport:
     if only_source and only_source not in cfg.sources:
         raise ValueError(f"no source named {only_source!r} in config.yaml")
@@ -262,6 +272,7 @@ def _run(
                 progress,
                 forget_missing=forget_missing,
                 allow_mass_forget=allow_mass_forget,
+                since=since if name != corrections.SOURCE else None,
             )
             report.sources[name] = stats
             if stats.failure is None:
@@ -364,8 +375,10 @@ def _scan_source(
     *,
     forget_missing: bool = False,
     allow_mass_forget: bool = False,
+    since: datetime | None = None,
 ) -> SourceStats:
     stats = SourceStats()
+    newer_than = getattr(connector, "newer_than", None) if since else None
     known = dict(
         conn.execute("SELECT external_id, version FROM items WHERE source_id = ?", (source,))
     )
@@ -377,6 +390,8 @@ def _scan_source(
             listed.add(external_id)
             if known.get(external_id) == version:
                 stats.unchanged += 1
+            elif newer_than and not newer_than(external_id, version, since):
+                stats.older += 1
             else:
                 todo.append(external_id)
     except SourceUnavailable as exc:

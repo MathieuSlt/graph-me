@@ -22,7 +22,7 @@ from pathlib import Path
 from graph_me import llm as llm_mod
 from graph_me.config import Config, LLMConfig
 from graph_me.pipeline.tier1 import embed, labels
-from graph_me.store import forget
+from graph_me.store import db, forget
 
 WORK = "work"
 DEFAULT_BATCH = 50
@@ -119,6 +119,7 @@ def _prompt(task: str, batch_id: str, items: list, me: str | None) -> tuple[str,
     return system, json.dumps(payload, ensure_ascii=False)
 
 
+@db.locked
 def enrich(
     conn: sqlite3.Connection,
     cfg: Config,
@@ -253,6 +254,7 @@ class IngestResult:
     stale: int = 0
 
 
+@db.locked
 def ingest(conn: sqlite3.Connection, out: Path, answer_path: Path) -> IngestResult:
     """Validate an agent's answer file against its batch, merge it, archive both files."""
     answer_path = answer_path.resolve()

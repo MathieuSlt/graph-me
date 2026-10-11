@@ -17,6 +17,41 @@ Example: `graph-me --config ~/work/config.yaml scan`.
 `graph-me init` creates `config.yaml` from the template if it doesn't exist, the `graph-out/`
 folder (readable only by you) and an empty index. It never overwrites an existing config.
 
+`graph-me init --detect` writes the config for you instead. It looks for your Documents, Desktop
+and Downloads folders, Obsidian vaults, a msgvault archive and `.vcf` address books, asks about
+each one, and guesses your time zone and phone country code. It reads nothing inside your
+files. `--yes` keeps everything it finds.
+
+### `demo`
+
+`graph-me demo` builds a graph from made-up data (a lease, a car insurance renewal, a plumber's
+quote, an address book, a suspicious download) in a temporary folder, and prints questions to
+try on it. `--dir <folder>` builds it in an empty folder of your choice, `--ui` opens the web
+UI on it. Your own config and index are not touched.
+
+### `doctor`
+
+`graph-me doctor` checks the whole setup and says how to fix each problem: the config, every
+source (reached the way `scan` would, reading one item at most), your corrections, the index
+folder's permissions, the index and how fresh it is, failures in the last run, the optional
+parts installed, the Claude Code skill and MCP server, and the schedule. It exits with code 1
+if something fails.
+
+### `install-mcp`
+
+`graph-me install-mcp` registers the MCP server with an AI app, using absolute paths so the app
+can start it without your shell.
+
+| Option | Meaning |
+| --- | --- |
+| `--client claude-code\|claude-desktop\|cursor\|codex` | Which app (default `claude-code`, through `claude mcp add --scope user`) |
+| `--name <name>` | The server's name in the app (default `graph-me`) |
+| `--print` | Show the change without making it |
+| `--yes` | Don't ask before editing |
+
+It shows the change to the app's config file first, keeps a `.bak` copy, and touches nothing
+else in that file.
+
 ### `where`
 
 `graph-me where` shows which config and index are in use, how many sources, items, entities
@@ -38,6 +73,10 @@ folder (readable only by you) and an empty index. It never overwrites an existin
 `graph-me scan` reads your sources and adds new or changed items. It never removes anything. Use
 `sync` for that.
 
+On a big archive, `graph-me scan --since 90d` reads only what is dated in the last 90 days
+(also `12w`, `6m`, `1y` or a date), so you can ask questions within minutes. Run `graph-me scan`
+afterwards for the rest.
+
 ### `sync`
 
 `graph-me sync` makes the index match your sources. It adds and updates like `scan`. It also
@@ -50,6 +89,23 @@ forgets deleted files, messages deleted in msgvault, and sources you removed fro
 | `--source <name>` | yes | yes | Only this source from `config.yaml` |
 | `--workers <n>` | yes | yes | Number of files read in parallel (default: your CPU count minus one) |
 | `--allow-mass-forget` | | yes | Allow forgetting more than half of a source. Without it, sync stops in case a drive is unplugged. |
+
+Only one `scan`, `sync`, `enrich` or `ingest` runs on an index at a time. A second one stops
+at once with a message instead of waiting.
+
+### `schedule`
+
+`graph-me schedule install --every 6h` runs `graph-me sync` regularly with your system's own
+scheduler: a launchd agent on macOS (`~/Library/LaunchAgents/io.github.graph-me.sync.plist`),
+a systemd user timer on Linux (`~/.config/systemd/user/graph-me-sync.timer`). There is no
+graph-me background service. Each run appends to `graph-out/sync.log`. A source that can't be
+reached is skipped, never wiped, as with a manual sync.
+
+| Command | Meaning |
+| --- | --- |
+| `graph-me schedule install [--every 30m\|6h\|1d]` | Sync on a schedule (default every 6 hours, at least 15 minutes); replaces an existing one |
+| `graph-me schedule status` | Whether a schedule is installed and loaded |
+| `graph-me schedule remove` | Stop syncing on a schedule |
 
 ### `report`
 

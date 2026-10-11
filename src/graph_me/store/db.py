@@ -2,10 +2,21 @@
 
 from __future__ import annotations
 
+import contextlib
+import fcntl
+import functools
+import os
 import sqlite3
+from collections.abc import Iterator
 from importlib import resources
 from pathlib import Path
 from urllib.parse import quote
+
+LOCK_NAME = ".run.lock"
+
+
+class RunLocked(RuntimeError):
+    """Another scan, sync, enrich or ingest is writing to this index."""
 
 
 def _migrations() -> dict[int, str]:
@@ -71,6 +82,40 @@ def load_vec(conn: sqlite3.Connection) -> bool:
     finally:
         conn.enable_load_extension(False)
     return True
+
+
+@contextlib.contextmanager
+def run_lock(conn: sqlite3.Connection) -> Iterator[None]:
+    """Hold ``.run.lock`` next to graph.db, so a scheduled sync and a manual one never overlap.
+
+    Fails at once (``RunLocked``) instead of waiting. In-memory databases need no lock.
+    """
+    path = conn.execute("PRAGMA database_list").fetchone()[2]
+    if not path:
+        yield
+        return
+    fd = os.open(Path(path).with_name(LOCK_NAME), os.O_RDWR | os.O_CREAT, 0o600)
+    try:
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            raise RunLocked(
+                "Another scan, sync or enrich is running on this index. Try again when it ends."
+            ) from None
+        yield
+    finally:
+        os.close(fd)  # closing releases the lock
+
+
+def locked(fn):
+    """Run ``fn(conn, ...)`` under ``run_lock(conn)``."""
+
+    @functools.wraps(fn)
+    def wrapper(conn: sqlite3.Connection, *args, **kwargs):
+        with run_lock(conn):
+            return fn(conn, *args, **kwargs)
+
+    return wrapper
 
 
 def schema_version(conn: sqlite3.Connection) -> int:

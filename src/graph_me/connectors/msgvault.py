@@ -23,7 +23,7 @@ from __future__ import annotations
 import hashlib
 import sqlite3
 from collections.abc import Iterable, Iterator
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from urllib.parse import quote
 
@@ -87,6 +87,7 @@ class MsgvaultConnector:
         self.accounts = [str(a) for a in extra.get("accounts", [])]
         self.contacts = bool(extra.get("contacts", True))
         self._ids: dict[str, int] = {}
+        self._sent: dict[str, str | None] = {}  # external id -> sent_at, for scan --since
         self._contacts: dict[str, tuple[Contact, str]] = {}
         self._known: set[int] | None = None
         self._conn: sqlite3.Connection | None = None
@@ -143,9 +144,10 @@ class MsgvaultConnector:
 
     def list_ids(self) -> Iterator[tuple[str, str]]:
         self._ids.clear()
+        self._sent.clear()
         where, params = self._account_filter()
         rows = self.conn.execute(
-            f"""SELECT m.id, s.source_type, s.identifier, m.source_message_id,
+            f"""SELECT m.id, s.source_type, s.identifier, m.source_message_id, m.sent_at,
                        COALESCE(m.{self._version_expr}, m.sent_at) AS version
                 FROM messages m JOIN sources s ON s.id = m.source_id
                 WHERE m.deleted_at IS NULL AND m.deleted_from_source_at IS NULL{where}""",
@@ -156,9 +158,19 @@ class MsgvaultConnector:
                 f"msg/{r['source_type']}/{r['identifier']}/{r['source_message_id'] or r['id']}"
             )
             self._ids[external_id] = r["id"]
+            self._sent[external_id] = r["sent_at"]
             yield external_id, str(r["version"])
         if self.contacts and self._has_persons:
             yield from self._list_contacts()
+
+    def newer_than(self, external_id: str, version: str, cutoff: datetime) -> bool:
+        """``scan --since``: the message was sent on or after ``cutoff``. Contacts always are."""
+        if external_id not in self._sent:
+            return True
+        sent = _parse_ts(self._sent[external_id])
+        if sent is None:
+            return True
+        return (sent if sent.tzinfo else sent.replace(tzinfo=UTC)) >= cutoff
 
     def _list_contacts(self) -> Iterator[tuple[str, str]]:
         self._contacts.clear()
