@@ -147,9 +147,10 @@ def _ocr(image) -> str:
 
             from rapidocr import RapidOCR
         except ImportError:
-            raise ParseError(
-                'scanned pages need the [ocr] extra: uv tool install "graph-me[ocr]"'
-            ) from None
+            from graph_me.env import install_command
+
+            hint = install_command("ocr")
+            raise ParseError(f"scanned pages need the [ocr] extra: {hint}") from None
         logging.getLogger("RapidOCR").setLevel(logging.WARNING)
         _engine = RapidOCR()
     result = _engine(image)

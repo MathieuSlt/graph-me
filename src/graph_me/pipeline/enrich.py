@@ -19,6 +19,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 
+from graph_me import env
 from graph_me import llm as llm_mod
 from graph_me.config import Config, LLMConfig
 from graph_me.pipeline.tier1 import embed, labels
@@ -183,11 +184,12 @@ def enrich(
 
 def _embed(conn, emb_name, where, params, progress) -> tuple[str, int]:
     if not embed.vec_loaded(conn):
-        return "skipped: sqlite-vec is not available in this Python (search stays on words)", 0
+        problem = env.vec_problem() or "sqlite-vec could not be loaded"
+        return f"skipped (search stays on words): {problem}", 0
     try:
         embedder = embed.get(emb_name)
     except ImportError:
-        return "skipped: install graph-me[medium] for embeddings", 0
+        return f"skipped: the [medium] extra is missing. Run: {env.install_command('medium')}", 0
     except Exception as exc:  # download or model errors must not lose the labels
         return f"skipped: could not load the embedding model ({type(exc).__name__}: {exc})", 0
     embed.ensure_table(conn, embedder)

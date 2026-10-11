@@ -1,7 +1,9 @@
-"""Runtime environment checks reported by ``graph-me where``."""
+"""Runtime environment checks reported by ``graph-me where`` and ``graph-me doctor``, and the
+install commands graph-me suggests."""
 
 from __future__ import annotations
 
+import importlib.util
 import os
 import sqlite3
 import sys
@@ -54,3 +56,63 @@ def check() -> Environment:
         fts5=fts5,
         load_extension=load_extension,
     )
+
+
+# Optional parts and a module each one brings (installed means importable here).
+EXTRAS: dict[str, tuple[str, ...]] = {
+    "medium": ("sqlite_vec", "fastembed"),
+    "ui": ("uvicorn", "starlette", "jinja2"),
+    "ocr": ("rapidocr",),
+    "macos": ("EventKit",),
+    "ner": ("gliner",),
+}
+
+
+def _importable(module: str) -> bool:
+    try:
+        return importlib.util.find_spec(module) is not None
+    except (ImportError, ValueError):
+        return False
+
+
+def installed_extras() -> list[str]:
+    return [name for name, modules in EXTRAS.items() if all(map(_importable, modules))]
+
+
+def install_command(*add: str) -> str:
+    """The command that adds ``add`` while keeping the extras already installed.
+
+    ``uv tool install`` replaces the extras: suggesting ``graph-me[ocr]`` to someone who has
+    ``[medium,ui]`` would remove those. So every hint lists them all.
+    """
+    wanted = set(installed_extras()) | set(add)
+    extras = [name for name in EXTRAS if name in wanted]
+    spec = f"graph-me[{','.join(extras)}]" if extras else "graph-me"
+    return f'uv tool install --managed-python "{spec}"'
+
+
+def loads_extensions() -> bool:
+    """Some Pythons (often a system one) are built without SQLite extension loading."""
+    return hasattr(sqlite3.Connection, "enable_load_extension")
+
+
+def vec_problem() -> str | None:
+    """Why sqlite-vec (meaning-based search) can't be used here, or None when it can."""
+    if not _importable("sqlite_vec"):
+        return f"the [medium] extra is missing. Install it with: {install_command('medium')}"
+    if not loads_extensions():
+        return (
+            "this Python can't load SQLite extensions, which sqlite-vec needs. Install graph-me "
+            f"on a Python managed by uv: {install_command('medium')}"
+        )
+    import sqlite_vec
+
+    conn = sqlite3.connect(":memory:")
+    try:
+        conn.enable_load_extension(True)
+        sqlite_vec.load(conn)
+    except (sqlite3.Error, AttributeError, OSError) as exc:
+        return f"sqlite-vec is installed but could not be loaded ({exc})"
+    finally:
+        conn.close()
+    return None

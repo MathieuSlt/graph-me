@@ -1558,9 +1558,7 @@ def ui(
 
         from graph_me.ui.app import build_app, new_token
     except ImportError:
-        raise _error(
-            'The web UI needs the [ui] extra: uv tool install --managed-python "graph-me[ui]"'
-        ) from None
+        raise _error(f"The web UI needs the [ui] extra: {env.install_command('ui')}") from None
     import socket
     import webbrowser
 

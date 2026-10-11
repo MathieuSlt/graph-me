@@ -6,7 +6,6 @@ most) and reads the index, but changes nothing.
 
 from __future__ import annotations
 
-import importlib.util
 import itertools
 import json
 import shutil
@@ -77,31 +76,23 @@ def run(
                   "Install with `uv tool install --managed-python graph-me`."))  # fmt: skip
     else:
         add(Check(OK, "python", f"{e.python_version}, SQLite {e.sqlite_version}"))
-    extras = [name for name, module in (("medium", "fastembed"), ("ui", "uvicorn"),
-                                        ("ocr", "rapidocr"), ("macos", "EventKit"))
-              if _has(module)]  # fmt: skip
+    extras = env.installed_extras()
     add(Check(INFO, "extras", ", ".join(extras) if extras else "none (base install, Tier 0)"))
+    checks += _tier1(cfg, out / config.DB_NAME)
     wants_ocr = [n for n, s in cfg.sources.items() if (s.model_extra or {}).get("ocr")]
     if wants_ocr and "ocr" not in extras:
         add(Check(WARN, "ocr", f"{', '.join(wants_ocr)} asks for OCR, but the [ocr] extra is "
                   "missing: scanned pages stay unread",
-                  'Run `uv tool install --managed-python "graph-me[ocr]"`.'))  # fmt: skip
+                  f"Run `{env.install_command('ocr')}`."))  # fmt: skip
     wants_mac = [n for n, s in cfg.sources.items() if s.type == "macos-calendar"]
-    if wants_mac and not _has("EventKit"):
+    if wants_mac and "macos" not in extras:
         add(Check(WARN, "macos", f"{', '.join(wants_mac)} needs the [macos] extra",
-                  'Run `uv tool install --managed-python "graph-me[macos]"`.'))  # fmt: skip
+                  f"Run `{env.install_command('macos')}`."))  # fmt: skip
 
     add(_skill(home))
     add(_mcp(runner))
     add(_schedule(home, runner))
     return checks
-
-
-def _has(module: str) -> bool:
-    try:
-        return importlib.util.find_spec(module) is not None
-    except (ImportError, ValueError):
-        return False
 
 
 def _source(name: str, source: config.SourceConfig, cfg: config.Config) -> Check:
@@ -177,6 +168,30 @@ def _index(path: Path, cfg: config.Config) -> list[Check]:
         if stats.get("failure"):
             checks.append(Check(WARN, f"last run: {name}", stats["failure"].splitlines()[0]))
     return checks
+
+
+def _tier1(cfg: config.Config, path: Path) -> list[Check]:
+    """Meaning-based search: say why it is off when the index already uses Tier 1."""
+    wanted = (cfg.extraction.medium.embeddings or "local") != "none"
+    if not wanted or not path.exists():
+        return []
+    conn = db.connect(path, readonly=True)
+    try:
+        enriched = conn.execute("SELECT 1 FROM items WHERE tier >= 1 LIMIT 1").fetchone()
+        has_vectors = conn.execute(
+            "SELECT 1 FROM sqlite_master WHERE name = 'chunks_vec'"
+        ).fetchone()
+    finally:
+        conn.close()
+    if not (enriched or has_vectors):  # Tier 0 by choice: nothing to say
+        return []
+    problem = env.vec_problem()
+    if problem is None and "medium" not in env.installed_extras():
+        problem = "the [medium] extra is incomplete (fastembed is missing)"
+    if problem:
+        hint = f"Run `{env.install_command('medium')}`, then `graph-me enrich`."
+        return [Check(WARN, "embeddings", f"meaning-based search is off: {problem}", hint)]
+    return [Check(OK, "embeddings", "meaning-based search is available")]
 
 
 def _skill(home: Path) -> Check:
