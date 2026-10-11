@@ -233,7 +233,12 @@ Plugins register through Python entry points (`graph_me.connectors`), so `pip in
 | --- | --- | --- |
 | filesystem | Walks configured paths, text-like extensions only | Respects exclude globs and blacklist; `version` = mtime + size to skip unchanged files, content hash = sha256; optional `trust: untrusted` for folders like Downloads |
 | msgvault | msgvault's local database, opened read-only | Messages (mail, chats), recipients (for chats: the other members), attachments with their sha256, raw address-book entries. Messages marked deleted count as gone. Version = `content_changed_at`. Required columns are checked at startup (tested with msgvault v0.20.0); msgvault's own person merges and inferred facts are ignored |
-| vcard | `.vcf` address books (vCard 2.1/3.0/4.0) | One `contact` item per card: names, nicknames, emails, phones, birthday, organization. For people who don't use msgvault |
+| vcard | `.vcf` address books (vCard 2.1/3.0/4.0) | One `contact` item per card: names, nicknames, emails, phones, birthday, organization, title, addresses, anniversary. For people who don't use msgvault |
+| ics | `.ics` calendar files | One `event` item per event (and moved occurrence); organizer and attendees as people. A cut-off file is unavailable, never empty |
+| macos-calendar | The macOS Calendar app through EventKit (`[macos]`) | Events in a past/future window; permission asked on the first scan |
+| overrides | `overrides.yaml` (built in, source `_overrides`) | Your corrections as contact items |
+
+Connector authors check their work with `graph_me.testing.check_connector`; see `docs/contributing-connectors.md` and `examples/graph-me-connector-example/`.
 
 ## Pipeline and tiers
 
@@ -446,6 +451,6 @@ answers, wrong answers, life admin, trust and control):
 | M9 · Upcoming | 0.3 | Tier 0 deadline and amount rules, more vCard fields, `upcoming` (CLI, MCP, UI, REPORT.md), `.ics` export | done |
 | M10 · Control | 0.3 | Agent activity log (`graph-me log`, UI page), profiles that scope MCP and the UI to some sources | done |
 | M11 · More data | 0.4 | `[ocr]` extra (RapidOCR) for scanned PDFs, `ics` calendar connector, `last_contact`, threads and topic timelines, `.enex`, CSV headers in chunks | done |
-| M12 · Ecosystem | 0.5 | `export bundle`, connector contract kit and example plugin, rule-pack kit with examples and user packs | |
+| M12 · Ecosystem | 0.5 | `export bundle`, connector contract kit and example plugin, rule-pack kit with examples and user packs | done |
 
 M4 is the first usable point: the v1 demo works on the synthetic fixture at Tier 0. No dates are set yet; add them once the pace of work is known.

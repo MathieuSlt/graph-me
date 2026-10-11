@@ -11,6 +11,12 @@ before 1.0, minor versions may break the config or the store.
   says how someone relates to you (so "my sister's birthday" works without Tier 1), and
   `fact --set/--reject` fixes a fact. Corrections are cited as "set by you" and removing one
   undoes it. `graph-me overrides` shows them.
+- **Bundles**: `graph-me export bundle "<words>" --out <folder>` copies what a search finds
+  (files, messages as Markdown, an `INDEX.md`) into one private folder.
+- **For contributors**: `graph_me.testing.check_connector` and an example plugin for writing
+  connectors; `graph-me rules template|check|list`, examples inside every rule pack, and your
+  own packs in `rules/` next to config.yaml. Guides: "Write a connector", "Add a language".
+- `overrides.yaml` (and a `rules/` folder) are git-ignored inside a clone.
 - **Calendars**: an `ics` source for calendar files, and a `macos-calendar` source for the
   macOS Calendar app with all its accounts (`graph-me[macos]`). Meetings link the people in
   them; `who` says when you were last in touch and when you meet next.

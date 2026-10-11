@@ -2,7 +2,7 @@
 
 ```bash
 git clone https://github.com/MathieuSlt/graph-me && cd graph-me
-uv sync --extra medium --extra ui
+uv sync --extra medium --extra ui --extra ocr --extra macos
 uv run pytest                 # mail and WhatsApp tests need msgvault: scripts/install_msgvault.sh
 uv run ruff check && uv run ruff format --check
 uv run graph-me where         # inside the clone, config.yaml and graph-out/ live at its root
@@ -11,6 +11,11 @@ uv run graph-me where         # inside the clone, config.yaml and graph-out/ liv
 The tests use only synthetic data from `tests/factory.py`.
 `scripts/benchmark.py --config <config.yaml>` measures scan time, index size and query speed on
 your own data and prints numbers only, so you can share the result.
+
+## Extend it
+
+- [Write a connector](contributing-connectors.md) for a new source, as a plugin package.
+- [Add a language](contributing-rules.md): a rule pack, YAML only.
 
 ## Design notes
 

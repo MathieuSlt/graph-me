@@ -146,11 +146,33 @@ def main(
     ] = False,
 ) -> None:
     cfg_path = config.config_path(config_file)
+    _use_user_rules(cfg_path.expanduser().parent / "rules")
     try:
         cfg = config.load_config(cfg_path)
     except Exception as exc:  # invalid YAML or schema: show a readable error
         raise _error(_config_error(cfg_path, exc)) from exc
     ctx.obj = Context(config_path=cfg_path, config=cfg, out=config.resolve_output(out, cfg))
+
+
+def _use_user_rules(folder: Path) -> None:
+    """Your own rule packs: rules/ next to config.yaml (an explicit GRAPH_ME_RULES wins).
+
+    Set in the environment so the worker processes of a scan read them too.
+    """
+    import os
+
+    from graph_me import rules
+
+    global _rules_set
+    current = os.environ.get(rules.ENV_RULES)
+    if current is not None and current != _rules_set:  # set by you: keep it
+        return
+    if current != str(folder):
+        os.environ[rules.ENV_RULES] = _rules_set = str(folder)
+        rules.reload()
+
+
+_rules_set: str | None = None  # the GRAPH_ME_RULES value this process set itself
 
 
 def _require_index(c: Context) -> None:
@@ -1055,6 +1077,142 @@ def activity_log(
             typer.echo(typer.style(f"      {res['kind'] or '-'}: {label}", dim=True))
     typer.echo(typer.style(f"\nKept {c.config.log.keep_days} days (log.keep_days). "
                            "`graph-me log --clear` deletes it.", dim=True))  # fmt: skip
+
+
+rules_app = typer.Typer(
+    help="Language rule packs: the words graph-me looks for (birthdays, deadlines, relations).",
+    no_args_is_help=True,
+)
+app.add_typer(rules_app, name="rules", rich_help_panel=SETUP)
+
+
+@rules_app.command("list")
+def rules_list() -> None:
+    """Show the loaded rule packs and where your own go."""
+    from graph_me import rules
+
+    for lang, pack in sorted(rules.load_all().items()):
+        counts = (f"{len(pack.stopwords)} stopwords, {len(pack.birthday_greetings)} greetings, "
+                  f"{sum(map(len, pack.relations.values()))} relation words, "
+                  f"{sum(map(len, pack.deadlines.values()))} deadline phrases")  # fmt: skip
+        typer.echo(f"{lang}  {counts}")
+    folder = rules.user_dir()
+    state = "found" if folder and folder.is_dir() else "none yet"
+    typer.echo(f"\nYour own packs: {folder} ({state})")
+    typer.echo("Start from: graph-me rules template > rules/<code>.yaml")
+
+
+@rules_app.command("template")
+def rules_template() -> None:
+    """Print a commented, empty rule pack to start a new language from."""
+    from importlib import resources as res
+
+    typer.echo(res.files("graph_me.rules").joinpath("_template.yaml").read_text("utf-8"), nl=False)
+
+
+@rules_app.command("check")
+def rules_check(
+    file: Annotated[Path, typer.Argument(metavar="FILE", help="A rules/<code>.yaml file.")],
+) -> None:
+    """Validate a rule pack and run its examples (with the other packs loaded too)."""
+    import os
+    import tempfile
+
+    from pydantic import ValidationError
+
+    from graph_me import rules
+
+    try:
+        pack = rules.read_pack(file)
+    except (OSError, ValueError, ValidationError) as exc:
+        detail = "\n".join(f"  {'.'.join(map(str, e['loc']))}: {e['msg']}" for e in exc.errors()) \
+            if isinstance(exc, ValidationError) else f"  {exc}"  # fmt: skip
+        raise _error(f"{file} is not a valid rule pack:\n{detail}") from exc
+    saved = os.environ.get(rules.ENV_RULES)
+    with tempfile.TemporaryDirectory() as tmp:
+        # Load the pack under check next to the others, as a scan would.
+        user = Path(saved).expanduser() if saved else None
+        for existing in user.glob("*.yaml") if user and user.is_dir() else ():
+            if existing.resolve() != file.resolve():
+                (Path(tmp) / existing.name).write_bytes(existing.read_bytes())
+        (Path(tmp) / "checked.yaml").write_bytes(file.read_bytes())
+        os.environ[rules.ENV_RULES] = tmp
+        rules.reload()
+        try:
+            failures = rules.check_examples(pack)
+        finally:
+            if saved is None:
+                os.environ.pop(rules.ENV_RULES, None)
+            else:
+                os.environ[rules.ENV_RULES] = saved
+            rules.reload()
+    ex = pack.examples
+    total = (len(ex.birthday.match) + len(ex.birthday.no_match) + len(ex.injection.match)
+             + len(ex.injection.no_match) + len(ex.values) + len(ex.relations))  # fmt: skip
+    for failure in failures:
+        typer.secho(f"fail  {failure}", fg=typer.colors.RED)
+    if failures:
+        raise typer.Exit(1)
+    typer.echo(f"{file}: valid {pack.language} pack, {_plural(total, 'example')} passed.")
+    if not total:
+        typer.secho("Add examples (see `graph-me rules template`) so changes stay tested.",
+                    fg=typer.colors.YELLOW)  # fmt: skip
+
+
+@export_app.command("bundle")
+def export_bundle(
+    ctx: typer.Context,
+    text: Annotated[str, typer.Argument(metavar="WORDS", help="What to gather.")],
+    out: Annotated[
+        Path, typer.Option("--out", metavar="FOLDER", help="A new or empty folder to fill.")
+    ],
+    kind: Annotated[
+        str | None,
+        typer.Option(metavar="KIND", callback=_one_of(*KINDS), help="Only this kind of item."),
+    ] = None,
+    source: Annotated[
+        str | None, typer.Option(metavar="NAME", help="Only this source from config.yaml.")
+    ] = None,
+    since: Annotated[
+        str | None,
+        typer.Option(metavar="YYYY-MM-DD", callback=_day, help="Only items dated on or after."),
+    ] = None,
+    until: Annotated[
+        str | None,
+        typer.Option(metavar="YYYY-MM-DD", callback=_day, help="Only items dated on or before."),
+    ] = None,
+    limit: Annotated[int, typer.Option(metavar="N", min=1, max=500, help="At most N items.")] = 100,
+    reveal: Annotated[
+        bool, typer.Option("--reveal", help="Keep secrets (IBANs, passwords...) in the text.")
+    ] = False,
+    yes: Annotated[bool, typer.Option("--yes", help="Don't ask before copying.")] = False,
+) -> None:
+    """Copy what a search finds into one folder: files, messages as Markdown, and an index.
+
+    For a tax return, a visa file or a move. The originals stay where they are.
+    Example: graph-me export bundle "lease landlord deposit" --out ~/Desktop/apartment
+    """
+    from graph_me.export import bundle
+
+    c = _ctx(ctx)
+    _require_index(c)
+    service = _service(c)
+    folder = out.expanduser().resolve()
+    if folder.exists() and any(folder.iterdir()):
+        raise _error(f"{folder} is not empty. Pick a new or empty folder.")
+    items = bundle.plan(service, text, limit=limit, kind=kind, source=source, since=since,
+                        until=until)  # fmt: skip
+    if not items:
+        raise _error(f"Nothing found for {text!r}. Try other words or fewer filters.")
+    for n, item in enumerate(items, 1):
+        typer.echo(f"{n:3d}. {_date(item):<10} {item['kind']:<8} {item['title'] or '(untitled)'}")
+    if not yes and not typer.confirm(f"Copy these {len(items)} items to {folder}?", default=True):
+        raise typer.Exit(1)
+    result = bundle.write(service, items, folder, reveal=reveal)
+    typer.echo(f"\n{folder}: {_plural(len(result.files), 'file')}, "
+               f"{_plural(len(result.messages), 'note')}, INDEX.md")  # fmt: skip
+    for path in result.missing:
+        typer.secho(f"  no longer on disk: {path}", fg=typer.colors.YELLOW, err=True)
 
 
 # -- correct ------------------------------------------------------------------------------------

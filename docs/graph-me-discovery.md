@@ -264,7 +264,7 @@ Open questions:
 - [ ] Which queries are MCP tools and which are skill instructions?
 - [ ] Auto-merge threshold for duplicate people, and when to ask the user?
 - [x] Exact default noise excludes for the filesystem connector (`DEFAULT_EXCLUDE` in `connectors/filesystem.py`)
-- [ ] Contribution guide for connectors and language packs
+- [x] Contribution guide for connectors and language packs (`docs/contributing-connectors.md`, `docs/contributing-rules.md`)
 - [ ] Does msgvault expose deletions in a way graph-me can detect cheaply?
 
 ## Decisions log and naming
@@ -308,6 +308,8 @@ Open questions:
 | Profiles | `profiles:` in config.yaml; `mcp/ui --profile` fixes it at start. `store/scope.py` creates TEMP views named like the tables (SQLite resolves `temp` first), so every query is scoped without per-query code; writes name `main.`. Identifiers are shown only when a visible item showed them (`item_identifiers`, migration 005); older indexes need `scan --reread` once. Community labels are hidden; `meta`-based stats are filtered by hand (decided 2026-10-11) |
 | OCR | `[ocr]` extra with RapidOCR (models ship in the wheel: no download, no network). Per source `ocr: true` reads pages with no text layer (30 per PDF), `images: true` adds .png/.jpg; the file version gains `:ocr` so turning it on reads PDFs again (decided 2026-10-11) |
 | Calendars | `ics` connector (icalendar, core dependency, pure Python) and `macos-calendar` (EventKit through pyobjc in the `[macos]` extra, read-only use of what macOS calls full access; a refused or unaskable permission skips the source). Events are `event` items; participants are linked by `met`, every pair up to 10 people, organizer to attendees above. A `.ics` file with fewer events than `BEGIN:VEVENT` lines is treated as unreadable (decided 2026-10-11) |
+| Bundles | `export bundle` is CLI only (no MCP tool, no UI route): it copies files and writes non-file items as redacted Markdown into a new 700 folder with `INDEX.md` (decided 2026-10-11) |
+| Plugins and packs | `graph_me.testing.check_connector` is the connector contract (stable versions, fetch matches list, `SourceUnavailable`, valid items), run on built-ins and the example plugin in `examples/`. Rule packs have a closed schema (`rules.PackFile`) and `examples` the suite runs; user packs load from `rules/` next to config.yaml through `GRAPH_ME_RULES` (inherited by workers) and merge into a built-in language; `_`-prefixed files are skipped (decided 2026-10-11) |
 | msgvault Gmail scope | msgvault asks for `gmail.modify` (its deletion flow); documented, graph-me stays read-only |
 
 Name alternatives checked on PyPI (free as of 2026-09-30): kithgraph, lifeweave, selfgraph, personagraph, lore-graph, ownsight, kinloom. Taken: lifegraph (so life-graph too), clawgraph (so claw-graph too).

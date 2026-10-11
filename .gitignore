@@ -13,4 +13,11 @@ graph-out/
 *.db-shm
 tests/fixtures/generated/
 config.yaml
+# Your corrections (graph-me link, relate, fact --set/--reject): personal data
+overrides.yaml
+overrides.yaml.bak
+overrides.yaml.tmp
 site/
+
+# Your own rule packs, when you run graph-me inside a clone
+/rules/

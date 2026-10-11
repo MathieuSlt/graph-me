@@ -234,8 +234,10 @@ class Service:
         return {"query": f"upcoming {days} days", "notice": pack.NOTICE, "today": today.isoformat(),
                 "results": found, "index": index}  # fmt: skip
 
-    def get_item(self, item_id: str, *, reveal: bool = False) -> dict:
-        """One item's full text (redacted, trust-tagged, capped at ITEM_MAX_WORDS)."""
+    def get_item(
+        self, item_id: str, *, reveal: bool = False, max_words: int | None = ITEM_MAX_WORDS
+    ) -> dict:
+        """One item's full text (redacted, trust-tagged, capped at ``max_words``; None: whole)."""
         with self._conn() as conn:
             row = conn.execute(
                 "SELECT *, COALESCE(created_at, modified_at) AS date FROM items WHERE id = ?",
@@ -252,8 +254,8 @@ class Service:
             index = self._freshness(conn)
             self._log(conn, f"get_item:{item_id}", [item_id])
         words = text.split(" ")
-        truncated = len(words) > ITEM_MAX_WORDS
-        text = " ".join(words[:ITEM_MAX_WORDS]) if truncated else text
+        truncated = max_words is not None and len(words) > max_words
+        text = " ".join(words[:max_words]) if truncated else text
         redacted: list[str] = []
         if not reveal:
             text, redacted = pack.redact(text)
