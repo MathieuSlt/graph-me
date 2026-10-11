@@ -31,7 +31,7 @@ From all that, graph-me builds a small graph: the people you deal with (merged a
 phone and chats), your folders and projects, and facts such as birthdays. Every fact keeps a link
 to the files or messages it came from.
 
-graph-me doesn't read images, audio, or scanned PDFs without a text layer.
+graph-me doesn't read audio, or photos as pictures. Scanned documents need `graph-me[ocr]`.
 
 ## Where to go next
 

@@ -28,6 +28,14 @@ Reads folders.
 | `paths` | Folders (or single files) to read |
 | `trust` | `self` for your own files (default), `known` for files from people you know, `untrusted` for files from anyone, like Downloads |
 | `exclude` | Patterns to skip, like `["**/old-backups/**"]`. Setting it replaces the built-in list below. |
+| `ocr` | `true` reads scanned PDF pages (pages with no text in them), up to 30 per PDF. Needs `graph-me[ocr]`. Turning it on reads your PDFs again. |
+| `images` | With `ocr: true`, also reads `.png` and `.jpg` files as photographed documents (receipts, letters). Off by default: most photos aren't documents. |
+
+OCR runs on your computer with [RapidOCR](https://github.com/RapidAI/RapidOCR). Its models come
+with the install, so nothing is downloaded and nothing leaves your computer. Expect about a
+second per page. CSV and TSV files are split so that every chunk starts with the header row,
+so a bank statement line found by search keeps its column names. Evernote exports (`.enex`)
+are read note by note.
 
 By default graph-me skips folders that are noise, not personal data: `.git`, `node_modules`,
 virtual environments, caches, build output of code projects (`dist`, `build`, `target` next to a
@@ -52,6 +60,38 @@ Reads `.vcf` address books (Google Contacts, iCloud and phone exports).
 | Key | Meaning |
 | --- | --- |
 | `paths` | `.vcf` files or folders containing them |
+
+### `ics`
+
+Reads calendar files: exports from any calendar app (Calendar, Outlook, Google Calendar's
+"Export"), or subscribed calendars saved to disk.
+
+| Key | Meaning |
+| --- | --- |
+| `paths` | `.ics` files or folders containing them |
+| `trust` | `known` by default: invitations come from other people |
+
+Each event becomes an item. The organizer and attendees become people, linked by `met`, so
+`graph-me who Sam` says when you last met. A recurring event is one item that says how it
+repeats. A file that looks cut off (still being written) is skipped for that run, never taken
+as a calendar whose events were deleted.
+
+### `macos-calendar`
+
+Reads the macOS Calendar app directly, with every account it shows (iCloud, Google, Exchange...),
+through Apple's EventKit. Needs `graph-me[macos]`, on macOS only.
+
+| Key | Meaning |
+| --- | --- |
+| `calendars` | Only these calendars, by name (default: all) |
+| `past_days` | How far back to read (default 730). Older events are forgotten like deleted ones. |
+| `future_days` | How far ahead (default 365) |
+| `trust` | `known` by default |
+
+The first `scan` asks macOS for access to your calendars. macOS calls it "full access", which
+would also allow changes; graph-me only reads. If you refuse, or a scheduled sync can't ask,
+the source is skipped and nothing is forgotten. You can change your answer in System Settings >
+Privacy & Security > Calendars.
 
 ## People
 

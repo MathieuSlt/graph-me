@@ -74,7 +74,7 @@ def build_server(service: Service) -> MCPServer:
         """Search files, mails, chat messages and contacts. Returns cited snippets, plus facts
         about people named in the query (e.g. "Sophie birthday").
 
-        kind: file | email | message | contact. since/until: dates as YYYY-MM-DD.
+        kind: file | email | message | contact | event. since/until: dates as YYYY-MM-DD.
         """
         _seen(ctx)
         return service.search(
@@ -113,15 +113,24 @@ def build_server(service: Service) -> MCPServer:
 
     @server.tool(annotations=_READ_ONLY)
     def timeline(
-        who: str,
+        who: str | None = None,
+        query: str | None = None,
         since: str | None = None,
         until: str | None = None,
         limit: int = 20,
         ctx: Context | None = None,
     ) -> dict:
-        """Items involving a person, newest first (messages, mails, contact cards)."""
+        """Items involving a person (`who`), or about a topic (`query`, e.g. "apartment
+        move"), newest first: messages, mails, meetings, files."""
         _seen(ctx)
-        return service.timeline(who, since=since, until=until, limit=min(limit, 100))
+        return service.timeline(who, query=query, since=since, until=until, limit=min(limit, 100))
+
+    @server.tool(annotations=_READ_ONLY)
+    def get_thread(item_id: str, ctx: Context | None = None) -> dict:
+        """The whole conversation an item belongs to (a mail thread, a chat, the occurrences of
+        a recurring event), oldest first, by the item's `id` from a previous result."""
+        _seen(ctx)
+        return service.thread(item_id)
 
     @server.tool(annotations=_READ_ONLY)
     def related(who: str, limit: int = 10, ctx: Context | None = None) -> dict:

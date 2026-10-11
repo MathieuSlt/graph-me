@@ -171,8 +171,22 @@ class Service:
         return {"query": who, "notice": pack.NOTICE, "results": out, "index": index}
 
     def timeline(
-        self, who: str, *, since: str | None = None, until: str | None = None, limit: int = 20
+        self,
+        who: str | None = None,
+        *,
+        query: str | None = None,
+        since: str | None = None,
+        until: str | None = None,
+        limit: int = 20,
     ) -> dict:
+        """Items involving a person, or about a topic (``query``), newest first."""
+        if who is None and query is None:
+            raise ValueError("give a person or a query")
+        if query is not None:
+            found = self.search(query, since=since, until=until, limit=limit)
+            items = sorted(found["answer_items"], key=lambda i: i.get("date") or "", reverse=True)
+            return {"query": query, "notice": pack.NOTICE, "results": [
+                {"entity": None, "items": items}], "index": found["index"]}  # fmt: skip
         with self._conn() as conn:
             people = graph.find_people(conn, who, self.cfg.people, limit=1)
             out = []
@@ -185,7 +199,20 @@ class Service:
                 )
             index = self._freshness(conn)
             self._log(conn, f"timeline:{who}", people)
+        for result in out:
+            _redact_titles(result["items"])
         return {"query": who, "notice": pack.NOTICE, "results": out, "index": index}
+
+    def thread(self, item_id: str) -> dict:
+        """The conversation (or recurring event) an item belongs to, oldest first."""
+        with self._conn() as conn:
+            items = graph.thread(conn, item_id)
+            index = self._freshness(conn)
+            self._log(conn, f"thread:{item_id}", [i["id"] for i in items])
+        _redact_titles(items)
+        if not items:
+            return {"error": f"no item {item_id!r}", "index": index}
+        return {"notice": pack.NOTICE, "item_id": item_id, "items": items, "index": index}
 
     def upcoming(self, *, days: int = 60, kind: str | None = None, today=None) -> dict:
         """Birthdays, anniversaries and deadlines (expires, renews, due, ends) coming up."""
@@ -320,6 +347,7 @@ class Service:
             info["facts"] = graph.facts_of(conn, eid)
             info["related"] = graph.related(conn, eid, limit=30)
             info["items"] = graph.timeline(conn, eid, limit=50)
+            info.update(graph.contact_dates(conn, eid))
             info["community"] = conn.execute(
                 """SELECT c.label FROM community_members cm JOIN communities c
                    ON c.id = cm.community_id WHERE cm.entity_id = ?""",
@@ -342,6 +370,9 @@ class Service:
         with self._conn() as conn:
             out["entities"] = graph.item_entities(conn, item_id)
             out["facts"] = graph.item_facts(conn, item_id)
+            thread = graph.thread(conn, item_id)
+        _redact_titles(thread)
+        out["thread"] = thread if len(thread) > 1 else []
         out["title"] = _redact_name(out["title"])
         for ent in out["entities"]:
             ent["name"] = _redact_name(ent["name"])

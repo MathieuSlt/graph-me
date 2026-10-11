@@ -78,8 +78,18 @@ def run(
     else:
         add(Check(OK, "python", f"{e.python_version}, SQLite {e.sqlite_version}"))
     extras = [name for name, module in (("medium", "fastembed"), ("ui", "uvicorn"),
-                                        ("ocr", "rapidocr")) if _has(module)]  # fmt: skip
+                                        ("ocr", "rapidocr"), ("macos", "EventKit"))
+              if _has(module)]  # fmt: skip
     add(Check(INFO, "extras", ", ".join(extras) if extras else "none (base install, Tier 0)"))
+    wants_ocr = [n for n, s in cfg.sources.items() if (s.model_extra or {}).get("ocr")]
+    if wants_ocr and "ocr" not in extras:
+        add(Check(WARN, "ocr", f"{', '.join(wants_ocr)} asks for OCR, but the [ocr] extra is "
+                  "missing: scanned pages stay unread",
+                  'Run `uv tool install --managed-python "graph-me[ocr]"`.'))  # fmt: skip
+    wants_mac = [n for n, s in cfg.sources.items() if s.type == "macos-calendar"]
+    if wants_mac and not _has("EventKit"):
+        add(Check(WARN, "macos", f"{', '.join(wants_mac)} needs the [macos] extra",
+                  'Run `uv tool install --managed-python "graph-me[macos]"`.'))  # fmt: skip
 
     add(_skill(home))
     add(_mcp(runner))

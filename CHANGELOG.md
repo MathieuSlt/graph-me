@@ -11,6 +11,14 @@ before 1.0, minor versions may break the config or the store.
   says how someone relates to you (so "my sister's birthday" works without Tier 1), and
   `fact --set/--reject` fixes a fact. Corrections are cited as "set by you" and removing one
   undoes it. `graph-me overrides` shows them.
+- **Calendars**: an `ics` source for calendar files, and a `macos-calendar` source for the
+  macOS Calendar app with all its accounts (`graph-me[macos]`). Meetings link the people in
+  them; `who` says when you were last in touch and when you meet next.
+- **Scanned documents**: `ocr: true` on a folder reads scanned PDF pages on your computer
+  (`graph-me[ocr]`, no download); `images: true` also reads photographed documents.
+- **Timelines and threads**: `graph-me timeline <person>` or `--topic`, a Timeline page, the
+  `get_thread` MCP tool and whole conversations on an item's page.
+- Evernote exports (`.enex`) are read; CSV chunks keep their header row.
 - **Profiles**: `profiles:` in config.yaml and `graph-me mcp --profile work` (or
   `install-mcp --profile work`) limit an assistant to some sources, including what it learns
   about people. `graph-me ui --profile` too. Indexes made before need `graph-me scan --reread`

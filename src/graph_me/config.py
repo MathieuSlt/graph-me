@@ -124,7 +124,7 @@ class ProfileConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     sources: list[str] = Field(min_length=1)  # names under `sources:` (or _overrides)
-    kinds: list[Literal["file", "email", "message", "contact"]] | None = None
+    kinds: list[Literal["file", "email", "message", "contact", "event"]] | None = None
 
 
 class LogConfig(BaseModel):

@@ -4,7 +4,7 @@
 
 **graph-me** (working name): an open-source (MIT) Python tool that builds a local knowledge graph of a person's own data (files, mail, WhatsApp) so an AI agent can query it. Think graphify, but for personal data. You invoke it from an agent with "use graph-me".
 
-Status: M0, M1 (Tier 0 on files), M2 (msgvault, vCard, people, birthday facts) M3 (sync and forget), M4 (MCP server, skill, REPORT.md) and M5 (Tier 1: labels + embeddings, no NER yet) are done. M6 is in progress: web UI and benchmark script done; 0.1.0 is released (`.github/workflows/release.yml`: push a `v*` tag to publish to PyPI by trusted publishing). Roadmap M7–M12 is in the implementation plan; M7 (corrections in `overrides.yaml`, index freshness) M8 (`init --detect`, `scan --since`, `doctor`, `install-mcp`, `schedule`, `demo`, run lock) and M9 (deadline and amount rules, `upcoming`, `export ics`) and M10 (activity log, profiles) are done.
+Status: M0, M1 (Tier 0 on files), M2 (msgvault, vCard, people, birthday facts) M3 (sync and forget), M4 (MCP server, skill, REPORT.md) and M5 (Tier 1: labels + embeddings, no NER yet) are done. M6 is in progress: web UI and benchmark script done; 0.1.0 is released (`.github/workflows/release.yml`: push a `v*` tag to publish to PyPI by trusted publishing). Roadmap M7–M12 is in the implementation plan; M7 (corrections in `overrides.yaml`, index freshness) M8 (`init --detect`, `scan --since`, `doctor`, `install-mcp`, `schedule`, `demo`, run lock) and M9 (deadline and amount rules, `upcoming`, `export ics`) M10 (activity log, profiles) and M11 (calendars: `ics`, `macos-calendar`; OCR; timelines and threads; `.enex`, CSV) are done.
 - **Open source, English only**: docs, CLI, UI, examples and placeholders are in English and never refer to the maintainer's own data. French appears only in the French rule pack and the synthetic test fixtures that exercise it. Development plan: milestones M0–M6 in `docs/graph-me-implementation-plan.md`.
 
 ## Source of truth
@@ -17,7 +17,7 @@ Read the relevant doc before implementing a feature. If a decision changes, upda
 ## Non-negotiable constraints
 
 - **Read-only in v1.** graph-me never writes, sends or deletes anything in a source. There are no write tools in MCP or the web UI.
-- **Tier 0 uses zero models**: no LLM, no embeddings, no network. Any AI dependency goes in an optional extra (`[medium]`, `[ner]`, `[ui]`), never in core deps.
+- **Tier 0 uses zero models**: no LLM, no embeddings, no network. Any AI dependency goes in an optional extra (`[medium]`, `[ner]`, `[ui]`, `[ocr]`, `[macos]`), never in core deps.
 - **Every fact is cited.** Facts and relations go through the `evidence` table. Nothing derived exists without a source item.
 - **Forget on delete.** `sync` removes items that are gone from the source, then cascades to facts, relations and orphaned entities (`store/forget.py`: no evidence = no fact/relation, no mention = no entity). For mail and WhatsApp, graph-me mirrors msgvault exactly.
 - **Never let an unreachable source look empty.** Connectors raise `SourceUnavailable` (missing folder, database) instead of listing nothing; `sync` skips the source. Mass forgetting (> half of a source above 50 items, or a removed source) needs `--allow-mass-forget`; files still on disk that the config now skips (noise globs, ignore marker) do not count.
@@ -52,16 +52,16 @@ Read the relevant doc before implementing a feature. If a decision changes, upda
 ```
 graph-me init [--detect] | where | doctor | demo | install-skill | install-mcp
 graph-me scan [--since] | sync [--source] | schedule install|status|remove | report
-graph-me query | who | fact [--set|--reject] | upcoming | export ics | link | unlink | relate | overrides
+graph-me query | who | fact [--set|--reject] | timeline | upcoming | export ics | link | unlink | relate | overrides
 graph-me enrich [--llm agent|ollama|anthropic|openai_compat] | ingest | ui [--profile] | mcp [--profile] | log
 ```
 
-Implemented so far: `init`, `where`, `doctor`, `demo`, `install-skill`, `install-mcp`, `schedule`, `scan` and `sync` (Tier 0: filesystem, msgvault, vcard), `query [--format text|json|markdown]`, `who`, `fact`, `upcoming`, `export ics`, `link`, `unlink`, `relate`, `overrides`, `mcp`, `report`, `enrich`, `ingest`, `ui`, `log`. The others exit with code 2 and name the milestone that brings them.
+Implemented so far: `init`, `where`, `doctor`, `demo`, `install-skill`, `install-mcp`, `schedule`, `scan` and `sync` (Tier 0: filesystem, msgvault, vcard, ics, macos-calendar), `query [--format text|json|markdown]`, `who`, `fact`, `timeline`, `upcoming`, `export ics`, `link`, `unlink`, `relate`, `overrides`, `mcp`, `report`, `enrich`, `ingest`, `ui`, `log`. The others exit with code 2 and name the milestone that brings them.
 
 Dev:
 
 ```
-uv sync --extra medium --extra ui   # [ner] pulls PyTorch; add --all-extras only when needed
+uv sync --extra medium --extra ui --extra ocr --extra macos   # [ner] pulls PyTorch; add --all-extras only when needed
 uv run pytest -q                    # mail/WhatsApp tests need msgvault: scripts/install_msgvault.sh
 uv run ruff check && uv run ruff format --check
 uv run graph-me where               # inside the clone: config.yaml and graph-out/ at the repo root (both git-ignored)

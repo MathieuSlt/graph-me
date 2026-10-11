@@ -73,20 +73,21 @@ class Prepared:
     error: str | None = None
 
 
-Job = tuple[str | None, str | None, str | None]  # (path, text, item date as YYYY-MM-DD)
+Job = tuple[str | None, str | None, str | None, bool]  # (path, text, item day, OCR scans)
 
 
 def _prepare(job: Job) -> Prepared:
     """Worker entry point: parse (if needed), sanitize, detect language, chunk, extract values.
 
-    ``job`` is ``(path, text, day)``: one of path and text is set; ``day`` is the item's own date
-    (a deadline on that day is when it was written). Top-level so it can run in a process pool.
+    ``job`` is ``(path, text, day, ocr)``: one of path and text is set; ``day`` is the item's own
+    date (a deadline on that day is when it was written); ``ocr`` reads scanned pages. Top-level
+    so it can run in a process pool.
     """
-    path, text, day = job
+    path, text, day, ocr = job
     error = None
     if text is None and path:
         try:
-            text = parse.parse_file(Path(path))
+            text = parse.parse_file(Path(path), ocr=ocr)
         except parse.ParseError as exc:
             text, error = "", str(exc)
     clean = sanitize.sanitize(text or "")
@@ -94,7 +95,11 @@ def _prepare(job: Job) -> Prepared:
         text=clean.text,
         risk=clean.risk_score,
         lang=lang.detect(clean.text) if clean.text else None,
-        chunks=chunk.chunk(clean.text),
+        chunks=(
+            chunk.chunk_table(clean.text)
+            if path and Path(path).suffix.lower() in parse.TABLE_EXTENSIONS
+            else chunk.chunk(clean.text)
+        ),  # fmt: skip
         values=extract.extract(clean.text, date.fromisoformat(day) if day else None),
         error=error,
     )
@@ -489,6 +494,7 @@ def _scan_source(
                 str(i.path) if i.text is None and i.path else None,
                 i.text,
                 i.created_at.date().isoformat() if i.created_at and i.kind != "file" else None,
+                bool(i.extra.get("ocr")),
             )
             for i in batch
         ]

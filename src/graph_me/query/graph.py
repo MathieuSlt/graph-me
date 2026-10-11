@@ -164,6 +164,7 @@ def who_is(
         info = entity(conn, eid)
         info["facts"] = facts_of(conn, eid)
         info["related"] = related(conn, eid, limit=5)
+        info.update(contact_dates(conn, eid))
         out.append(info)
     return out
 
@@ -202,6 +203,46 @@ def timeline(
         [*params, limit],
     ).fetchall()
     return [_item(r) for r in rows]
+
+
+def contact_dates(conn: sqlite3.Connection, eid: str, now: str | None = None) -> dict:
+    """When you were last in touch with a person (mail, chat or meeting) and when you meet next.
+
+    ``now``: ISO timestamp, default the current time. Contact cards and files don't count.
+    """
+    from datetime import UTC, datetime
+
+    now = now or datetime.now(UTC).isoformat()
+    out = {}
+    for label, cmp, order in (("last_contact", "<=", "DESC"), ("next_meeting", ">", "ASC")):
+        kinds = "('email', 'message', 'event')" if label == "last_contact" else "('event')"
+        row = conn.execute(
+            f"""SELECT i.*, {_ITEM_DATE} AS date FROM items i JOIN mentions m ON m.item_id = i.id
+                WHERE m.entity_id = ? AND i.kind IN {kinds} AND {_ITEM_DATE} {cmp} ?
+                ORDER BY date {order} LIMIT 1""",
+            (eid, now),
+        ).fetchone()
+        out[label] = _item(row) if row else None
+    return out
+
+
+def thread(conn: sqlite3.Connection, item_id: str, limit: int = 200) -> list[dict]:
+    """The items of an item's thread (a mail conversation, a chat, a recurring event), oldest
+    first. Just the item when it has no thread."""
+    row = conn.execute("SELECT thread_id, source_id FROM items WHERE id = ?", (item_id,)).fetchone()
+    if row is None:
+        return []
+    if not row["thread_id"]:
+        where, params = "i.id = ?", [item_id]
+    else:
+        where, params = "i.thread_id = ? AND i.source_id = ?", [row["thread_id"], row["source_id"]]
+    rows = conn.execute(
+        f"""SELECT i.*, {_ITEM_DATE} AS date FROM items i WHERE {where}
+            ORDER BY date ASC, i.id LIMIT ?""",
+        [*params, limit],
+    ).fetchall()
+    people = {r["id"]: _people_of(conn, r["id"]) for r in rows}
+    return [{**_item(r), **{k: v for k, v in people[r["id"]].items() if v}} for r in rows]
 
 
 def origins(conn: sqlite3.Connection, item_id: str) -> list[dict]:

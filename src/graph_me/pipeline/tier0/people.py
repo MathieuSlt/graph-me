@@ -4,7 +4,9 @@
   aliases are those identifiers. Entities sharing an identifier are merged (resolve.py).
 - The user's own identities (sent messages, ``people.me`` in config) all carry the alias
   ``role:me``, so they merge into one "me" entity.
-- ``author -wrote_to-> recipient`` relations are cited by each message.
+- ``author -wrote_to-> recipient`` relations are cited by each message. A calendar event links
+  its participants with ``met``: every pair in a meeting of up to ``SMALL_MEETING`` people, the
+  organizer to each attendee in a bigger one (an all-hands doesn't mean you met everyone).
 - Contact cards also give facts (birthday, nickname, organization) through facts.py.
 - Your corrections (overrides.yaml) arrive as contact cards too; ``not_same`` identifiers are
   never merged into one person (``PeopleContext.apart``).
@@ -26,6 +28,7 @@ from graph_me.pipeline.tier0.entities import entity_id, mention, relate
 from graph_me.pipeline.tier0.identity import norm_email, norm_name, norm_phone
 
 ME = ("role", "me")
+SMALL_MEETING = 10
 
 
 @dataclass
@@ -188,11 +191,25 @@ def item_people(conn: sqlite3.Connection, item_id: str, item: Item, ctx: PeopleC
         if pid and pid != author:
             mention(conn, pid, item_id, "recipient")
             recipients.append(pid)
-    if author:
+    if item.kind == "event":
+        _met(conn, item_id, author, list(dict.fromkeys(recipients)))
+    elif author:
         for pid in dict.fromkeys(recipients):
             relate(conn, author, pid, "wrote_to", item_id, "tier0:message")
 
     facts.greeting_facts(conn, item_id, item, recipients, ctx.tz)
+
+
+def _met(conn: sqlite3.Connection, item_id: str, organizer: str | None, attendees: list[str]):
+    people = [p for p in dict.fromkeys([organizer, *attendees]) if p]
+    if len(people) <= SMALL_MEETING:
+        for n, a in enumerate(people):
+            for b in people[n + 1 :]:
+                relate(conn, a, b, "met", item_id, "tier0:event")
+    elif organizer:
+        for pid in attendees:
+            if pid != organizer:
+                relate(conn, organizer, pid, "met", item_id, "tier0:event")
 
 
 def _contact(conn: sqlite3.Connection, item_id: str, item: Item, ctx: PeopleContext) -> None:
