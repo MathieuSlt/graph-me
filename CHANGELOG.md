@@ -3,6 +3,19 @@
 All notable changes to graph-me. Versions follow [semantic versioning](https://semver.org/);
 before 1.0, minor versions may break the config or the store.
 
+## Unreleased
+
+### Fixed
+
+- Install hints keep the optional parts you already have. `uv tool install` replaces the
+  extras, so the old hints (`graph-me[ocr]`, `graph-me[macos]`, `graph-me[ui]`) removed the
+  others, such as `[medium]`. Each hint now lists them all, like
+  `uv tool install --managed-python "graph-me[medium,ui,ocr,macos]"`.
+- `graph-me enrich` says why meaning-based search was skipped (the `[medium]` extra is missing,
+  or this Python can't load SQLite extensions) and what to run.
+- `graph-me doctor` warns when an enriched index can no longer use meaning-based search. A
+  Tier 0 index, or `embeddings: none`, gets no warning.
+
 ## 0.2.0 (2026-10-11)
 
 graph-me gets easier to set up, keeps itself up to date, takes your corrections, tells you what

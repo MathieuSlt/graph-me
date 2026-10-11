@@ -44,7 +44,7 @@ UI on it. Your own config and index are not touched.
 `graph-me doctor` checks the whole setup and says how to fix each problem: the config, every
 source (reached the way `scan` would, reading one item at most), your corrections, the index
 folder's permissions, the index and how fresh it is, failures in the last run, the optional
-parts installed, the Claude Code skill and MCP server, and the schedule. It exits with code 1
+parts installed (and whether meaning-based search still works on an enriched index), the Claude Code skill and MCP server, and the schedule. It exits with code 1
 if something fails.
 
 ### `install-mcp`

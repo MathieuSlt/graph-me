@@ -45,9 +45,10 @@ def default_store():
     try:
         from EventKit import EKEventStore
     except ImportError:
+        from graph_me.env import install_command
+
         raise SourceUnavailable(
-            "the macos-calendar source needs the [macos] extra: "
-            'uv tool install --managed-python "graph-me[macos]"'
+            f"the macos-calendar source needs the [macos] extra: {install_command('macos')}"
         ) from None
     return EKEventStore.alloc().init()
 
