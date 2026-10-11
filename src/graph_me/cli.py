@@ -163,10 +163,20 @@ def _open_store(c: Context) -> db.sqlite3.Connection:
     return db.connect(c.db_path)
 
 
-def _service(c: Context, interface: str = "cli"):
-    from graph_me.service import Service
+def _service(c: Context, interface: str = "cli", profile: str | None = None):
+    from graph_me.service import Service, UnknownProfile
 
-    return Service(c.config, c.db_path, interface)
+    try:
+        return Service(c.config, c.db_path, interface, profile=profile)
+    except UnknownProfile as exc:
+        raise _error(f"{exc}. Profiles are listed under `profiles:` in config.yaml.") from exc
+
+
+_PROFILE = typer.Option(
+    "--profile",
+    metavar="NAME",
+    help="Only the sources of this profile (`profiles:` in config.yaml).",
+)
 
 
 def _warn_if_stale(index: dict) -> None:
@@ -333,20 +343,25 @@ def install_mcp(
             help="claude-code, claude-desktop, cursor or codex.",
         ),
     ] = "claude-code",  # fmt: skip
-    name: Annotated[str, typer.Option(metavar="NAME", help="Server name in the app.")] = "graph-me",
+    name: Annotated[
+        str | None,
+        typer.Option(metavar="NAME", help="Server name in the app. Default: graph-me[-PROFILE]."),
+    ] = None,
+    profile: Annotated[str | None, _PROFILE] = None,
     print_only: Annotated[
         bool, typer.Option("--print", help="Show what would change, without changing it.")
     ] = False,
     yes: Annotated[bool, typer.Option("--yes", help="Don't ask before editing.")] = False,
 ) -> None:
     """Register graph-me's MCP server with an AI app: Claude Code, Claude Desktop, Cursor, Codex."""
-    import difflib
-
     from graph_me.setup import clients
 
     c = _ctx(ctx)
+    if profile is not None and profile not in c.config.profiles:
+        raise _error(f"No profile {profile!r} under `profiles:` in {c.config_path}.")
+    name = name or (f"graph-me-{profile}" if profile else "graph-me")
     try:
-        p = clients.plan(client, name, c.config_path)
+        p = clients.plan(client, name, c.config_path, profile=profile)
     except ValueError as exc:
         raise _error(str(exc)) from exc
     if p.run:
@@ -355,12 +370,9 @@ def install_mcp(
         typer.echo(f"{p.path} already has the {name!r} server. Nothing to do.")
         return
     else:
-        typer.echo(f"file     {p.path}")
-        diff = difflib.unified_diff(p.before.splitlines(), p.after.splitlines(),
-                                    "before", "after", lineterm="")  # fmt: skip
-        for line in diff:
-            typer.echo(typer.style(line, fg="green" if line.startswith("+") else
-                                   ("red" if line.startswith("-") else None)))  # fmt: skip
+        # Only graph-me's own entry: the app's other servers may hold tokens, never print them.
+        typer.echo(f"file     {p.path} (other settings kept, a .bak copy is made)")
+        typer.secho(clients.snippet(p), fg="green")
     if print_only:
         return
     if not yes and not typer.confirm("Apply this change?", default=True):
@@ -471,7 +483,7 @@ def demo(
     typer.echo(f"\nDelete {root} when you are done.")
     if open_ui:
         ctx.obj = Context(config_path=cfg_path, config=cfg, out=out)
-        ui(ctx, port=0, open_browser=True)
+        ui(ctx, port=0, open_browser=True, profile=None)
 
 
 # -- index --------------------------------------------------------------------------------------
@@ -496,12 +508,16 @@ def scan(
             "on a big archive; run a full scan afterwards for the rest.",
         ),
     ] = None,  # fmt: skip
+    reread: Annotated[
+        bool,
+        typer.Option("--reread", help="Read every item again, even unchanged ones (slow)."),
+    ] = False,
     tier: Annotated[str, typer.Option(hidden=True)] = "none",
 ) -> None:
     """Read your sources and add new or changed items. Never removes anything (see sync)."""
     if tier != "none":
         raise _error("scan builds Tier 0 only. Run `graph-me enrich` afterwards for Tier 1.", 2)
-    _run_pipeline(ctx, source=source, workers=workers, forget=False, since=since)
+    _run_pipeline(ctx, source=source, workers=workers, forget=False, since=since, reread=reread)
 
 
 @app.command(rich_help_panel=INDEX)
@@ -557,6 +573,7 @@ def _run_pipeline(
     forget: bool,
     allow_mass_forget: bool = False,
     since: str | None = None,
+    reread: bool = False,
 ) -> None:
     from graph_me.pipeline import run
 
@@ -586,7 +603,7 @@ def _run_pipeline(
         else:
             report = run.scan(
                 conn, c.config, only_source=source, workers=workers, progress=progress,
-                since=datetime.fromisoformat(since) if since else None,
+                since=datetime.fromisoformat(since) if since else None, reread=reread,
             )  # fmt: skip
     except (ValueError, db.RunLocked) as exc:
         conn.close()
@@ -944,6 +961,55 @@ def export_ics(
     typer.echo("Import it in your calendar app, or subscribe to the file to keep it updated.")
 
 
+@app.command("log", rich_help_panel=INTERFACES)
+def activity_log(
+    ctx: typer.Context,
+    since: Annotated[
+        str | None,
+        typer.Option(metavar="WHEN", callback=_since, help="Only since then: 7d, 2w or a date."),
+    ] = None,
+    interface: Annotated[
+        str | None,
+        typer.Option(metavar="FROM", callback=_one_of("cli", "mcp", "ui"), help="cli, mcp or ui."),
+    ] = None,
+    client: Annotated[
+        str | None, typer.Option(metavar="APP", help="Only this app (its MCP client name).")
+    ] = None,
+    profile: Annotated[str | None, _PROFILE] = None,
+    limit: Annotated[int, typer.Option(metavar="N", help="At most N queries.")] = 50,
+    as_json: Annotated[bool, typer.Option("--json", help="Print JSON.")] = False,
+    clear: Annotated[
+        bool, typer.Option("--clear", help="Delete the log (only before --since, if given).")
+    ] = False,
+) -> None:
+    """What your AI assistants (and you) asked graph-me, and what it returned."""
+    c = _ctx(ctx)
+    _require_index(c)
+    service = _service(c, profile=profile)
+    if clear:
+        removed = service.clear_activity(before=since)
+        typer.echo(f"Deleted {_plural(removed, 'logged query', 'logged queries')}.")
+        return
+    rows = service.activity(since=since, interface=interface, client=client, limit=limit)
+    if as_json:
+        typer.echo(json.dumps(rows, ensure_ascii=False, indent=2))
+        return
+    if not rows:
+        typer.echo("Nothing logged yet." if not (since or interface or client) else "No match.")
+        return
+    for r in rows:
+        when = datetime.fromisoformat(r["ts"]).astimezone().strftime("%Y-%m-%d %H:%M")
+        who = " · ".join(x for x in (r["interface"], r["client"],
+                                     r["profile"] and f"profile {r['profile']}") if x)  # fmt: skip
+        typer.secho(f"{when}  {r['query']}", bold=True, nl=False)
+        typer.echo(typer.style(f"  ({who}, {_plural(r['result_count'], 'result')})", dim=True))
+        for res in r["results"][:5]:
+            label = res["title"] or ("(forgotten since)" if res["type"] == "gone" else "(untitled)")
+            typer.echo(typer.style(f"      {res['kind'] or '-'}: {label}", dim=True))
+    typer.echo(typer.style(f"\nKept {c.config.log.keep_days} days (log.keep_days). "
+                           "`graph-me log --clear` deletes it.", dim=True))  # fmt: skip
+
+
 # -- correct ------------------------------------------------------------------------------------
 
 _PEOPLE = typer.Argument(
@@ -1279,6 +1345,7 @@ def ui(
     open_browser: Annotated[
         bool, typer.Option("--open/--no-open", help="Open the page in your browser.")
     ] = True,
+    profile: Annotated[str | None, _PROFILE] = None,
 ) -> None:
     """Open the web UI in your browser (search, graph, people). Needs the ui extra."""
     try:
@@ -1310,20 +1377,21 @@ def ui(
         webbrowser.open(url)
     server = uvicorn.Server(
         uvicorn.Config(
-            build_app(_service(c, "ui"), token), log_level="warning", access_log=False
+            build_app(_service(c, "ui", profile), token), log_level="warning", access_log=False
         )  # fmt: skip
     )
     server.run(sockets=[sock])
 
 
 @app.command(rich_help_panel=INTERFACES)
-def mcp(ctx: typer.Context) -> None:
+def mcp(ctx: typer.Context, profile: Annotated[str | None, _PROFILE] = None) -> None:
     """Run the MCP server for AI assistants. Your app starts it; you don't run it by hand.
 
-    Register it once with: claude mcp add graph-me -- graph-me mcp
+    Register it once with: graph-me install-mcp. With --profile, the assistant only sees that
+    profile's sources, and cannot change it.
     """
     from graph_me.mcp_server import build_server
 
     c = _ctx(ctx)
     _require_index(c)
-    build_server(_service(c, "mcp")).run()
+    build_server(_service(c, "mcp", profile)).run()

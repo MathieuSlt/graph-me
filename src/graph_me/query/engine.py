@@ -79,7 +79,8 @@ def _word_scores(conn, match: str, scores: dict, snippets: dict) -> None:
             snippets[row["item_id"]] = row["snip"]
     for row in conn.execute(
         """SELECT i.id, bm25(items_fts, 5.0, 1.0) AS rank
-           FROM items_fts JOIN items i ON i.rowid = items_fts.rowid
+           FROM items_fts JOIN main.items r ON r.rowid = items_fts.rowid
+           JOIN items i ON i.id = r.id  -- `items` may be a profile's view (store/scope.py)
            WHERE items_fts MATCH ? ORDER BY rank LIMIT ?""",
         (match, _CANDIDATES),
     ):

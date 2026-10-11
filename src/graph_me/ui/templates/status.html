@@ -2,7 +2,7 @@
 {% block title %}Status · graph-me{% endblock %}
 {% block main %}
 <h1>Status</h1>
-<p class="muted">Store: <code>{{ s.store }}</code> · highest tier: {{ s.tier }}{% if s.note %} · {{ s.note }}{% endif %}</p>
+<p class="muted">{% if s.profile %}<span class="badge">profile {{ s.profile }}</span> only its sources are shown · {% endif %}Store: <code>{{ s.store }}</code> · highest tier: {{ s.tier }}{% if s.note %} · {{ s.note }}{% endif %}</p>
 
 <h2>Sources</h2>
 <table class="grid">
@@ -31,7 +31,7 @@
   <section>
     <h2>Blacklist</h2>
     <p>{{ s.blacklist.paths }} path{{ "s" if s.blacklist.paths != 1 }}, {{ s.blacklist.contacts }} contact{{ "s" if s.blacklist.contacts != 1 }}, {{ s.blacklist.patterns }} pattern{{ "s" if s.blacklist.patterns != 1 }} in <code>config.yaml</code>.</p>
-    {% if s.last_run %}<p class="small">Last run ({{ s.last_run.at|replace("T", " ") }}): {{ s.last_run.forgotten_blacklisted }} stored item{{ "s" if s.last_run.forgotten_blacklisted != 1 }} forgotten because the blacklist changed.</p>{% endif %}
+    {% if s.last_run and s.last_run.forgotten_blacklisted is not none %}<p class="small">Last run ({{ s.last_run.at|replace("T", " ") }}): {{ s.last_run.forgotten_blacklisted }} stored item{{ "s" if s.last_run.forgotten_blacklisted != 1 }} forgotten because the blacklist changed.</p>{% endif %}
   </section>
 </div>
 

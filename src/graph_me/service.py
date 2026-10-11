@@ -16,7 +16,7 @@ from pathlib import Path
 from graph_me.config import Config
 from graph_me.overrides import SOURCE as OVERRIDES_SOURCE
 from graph_me.query import engine, graph, pack
-from graph_me.store import db
+from graph_me.store import db, scope
 
 ITEM_MAX_WORDS = 4000  # get_item returns at most this much text
 
@@ -36,11 +36,31 @@ def freshness(conn: sqlite3.Connection, stale_after_days: int) -> dict:
     return {"last_sync_at": oldest, "age_days": age, "stale": age > stale_after_days}
 
 
+class UnknownProfile(ValueError):
+    pass
+
+
 class Service:
-    def __init__(self, cfg: Config, db_path: Path, interface: str = "cli") -> None:
+    """``profile``: a name under ``profiles:`` in config.yaml. Every query then sees only that
+    profile's sources (store/scope.py). ``client``: the app asking, for the activity log."""
+
+    def __init__(
+        self,
+        cfg: Config,
+        db_path: Path,
+        interface: str = "cli",
+        *,
+        profile: str | None = None,
+        client: str | None = None,
+    ) -> None:
+        if profile is not None and profile not in cfg.profiles:
+            known = ", ".join(sorted(cfg.profiles)) or "none in config.yaml"
+            raise UnknownProfile(f"unknown profile {profile!r} (known: {known})")
         self.cfg = cfg
         self.db_path = db_path
         self.interface = interface
+        self.profile = profile
+        self.client = client
 
     @contextmanager
     def _conn(self) -> Iterator[sqlite3.Connection]:
@@ -49,6 +69,9 @@ class Service:
                 f"No graph at {self.db_path.parent}. Run `graph-me init` and `scan`."
             )
         conn = db.connect(self.db_path)
+        if self.profile is not None:
+            chosen = self.cfg.profiles[self.profile]
+            scope.limit(conn, chosen.sources, chosen.kinds)
         try:
             yield conn
         finally:
@@ -71,9 +94,10 @@ class Service:
 
     def _log(self, conn: sqlite3.Connection, query: str, result_ids: list[str]) -> None:
         conn.execute(
-            "INSERT INTO query_log(ts, interface, query, result_ids) VALUES (?, ?, ?, ?)",
+            "INSERT INTO main.query_log(ts, interface, query, result_ids, client, profile) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
             (datetime.now(UTC).isoformat(timespec="seconds"), self.interface, query,
-             json.dumps(result_ids)),
+             json.dumps(result_ids), self.client, self.profile),
         )  # fmt: skip
         conn.commit()
 
@@ -228,6 +252,63 @@ class Service:
             out["redacted"] = sorted(set(redacted))
         return out
 
+    # -- activity (for you, not for agents: there is no MCP tool for it) --------------------
+
+    def activity(
+        self,
+        *,
+        since: str | None = None,
+        interface: str | None = None,
+        client: str | None = None,
+        limit: int = 50,
+    ) -> list[dict]:
+        """The latest queries, newest first, with the items each one returned.
+
+        Under a profile, only that profile's queries. Items forgotten since (or that the
+        profile can't see) show as gone. Not logged itself.
+        """
+        where, params = [], []
+        for column, value in (("interface", interface), ("client", client),
+                              ("profile", self.profile)):  # fmt: skip
+            if value is not None:
+                where.append(f"{column} = ?")
+                params.append(value)
+        if since:
+            where.append("ts >= ?")
+            params.append(since)
+        sql = "SELECT rowid AS n, * FROM main.query_log"
+        if where:
+            sql += " WHERE " + " AND ".join(where)
+        with self._conn() as conn:
+            rows = conn.execute(sql + " ORDER BY ts DESC, n DESC LIMIT ?", (*params, limit))
+            out = []
+            for r in rows.fetchall():
+                ids = json.loads(r["result_ids"] or "[]")
+                out.append(
+                    {
+                        "ts": r["ts"],
+                        "interface": r["interface"],
+                        "client": r["client"],
+                        "profile": r["profile"],
+                        "query": pack.redact(r["query"])[0],
+                        "results": [_result(conn, i) for i in ids[:20]],
+                        "result_count": len(ids),
+                    }
+                )
+        return out
+
+    def clear_activity(self, before: str | None = None) -> int:
+        with self._conn() as conn:
+            sql, params = "DELETE FROM main.query_log", ()
+            if before:
+                sql, params = sql + " WHERE ts < ?", (before,)
+            if self.profile is not None:
+                sql += (" AND" if before else " WHERE") + " profile = ?"
+                params = (*params, self.profile)
+            removed = conn.execute(sql, params).rowcount
+            conn.commit()
+        return removed
+
     # -- web UI ----------------------------------------------------------------------------
 
     def entity_page(self, eid: str) -> dict | None:
@@ -319,11 +400,18 @@ class Service:
                 "SELECT count(*) FROM items WHERE risk_score >= ?", (pack.RISK_FLAG_AT,)
             ).fetchone()[0]
             last_run = json.loads(db.get_meta(conn, "last_run") or "null")
+            if last_run and self.profile is not None:  # meta isn't scoped: drop other sources
+                allowed = set(self.cfg.profiles[self.profile].sources)
+                last_run["sources"] = {
+                    k: v for k, v in last_run.get("sources", {}).items() if k in allowed
+                }
+                last_run["forgotten_blacklisted"] = None
             index = self._freshness(conn)
         _redact_titles(flagged)
         bl = self.cfg.blacklist
         return {
             "store": str(self.db_path.parent),
+            "profile": self.profile,
             "sources": sources,
             "counts": counts,
             "tier": tier,
@@ -339,6 +427,19 @@ class Service:
                 "patterns": len(bl.patterns),
             },
         }
+
+
+def _result(conn: sqlite3.Connection, ident: str) -> dict:
+    """One id from the query log: an item or an entity, or gone."""
+    row = conn.execute("SELECT id, kind, title FROM items WHERE id = ?", (ident,)).fetchone()
+    if row:
+        return {"id": row["id"], "type": "item", "kind": row["kind"],
+                "title": _redact_name(row["title"])}  # fmt: skip
+    row = conn.execute("SELECT id, kind, name FROM entities WHERE id = ?", (ident,)).fetchone()
+    if row:
+        return {"id": row["id"], "type": "entity", "kind": row["kind"],
+                "title": _redact_name(row["name"])}  # fmt: skip
+    return {"id": ident, "type": "gone", "kind": None, "title": None}
 
 
 def _redact_people(people: list[dict]) -> list[dict]:

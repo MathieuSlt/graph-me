@@ -11,6 +11,12 @@ before 1.0, minor versions may break the config or the store.
   says how someone relates to you (so "my sister's birthday" works without Tier 1), and
   `fact --set/--reject` fixes a fact. Corrections are cited as "set by you" and removing one
   undoes it. `graph-me overrides` shows them.
+- **Profiles**: `profiles:` in config.yaml and `graph-me mcp --profile work` (or
+  `install-mcp --profile work`) limit an assistant to some sources, including what it learns
+  about people. `graph-me ui --profile` too. Indexes made before need `graph-me scan --reread`
+  once for people's identifiers to show under a profile.
+- **Activity log**: `graph-me log` and the UI's Activity page show what your assistants asked
+  (with the app's name) and what came back. Kept 90 days (`log.keep_days`).
 - **What's coming up**: `graph-me upcoming`, the `upcoming` MCP tool and a "Coming up" UI page
   list birthdays, anniversaries and deadlines read in your documents and messages (when
   something expires, renews, is due or ends). REPORT.md lists them too. `graph-me export ics`

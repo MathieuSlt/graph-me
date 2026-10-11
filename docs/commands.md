@@ -49,8 +49,8 @@ can start it without your shell.
 | `--print` | Show the change without making it |
 | `--yes` | Don't ask before editing |
 
-It shows the change to the app's config file first, keeps a `.bak` copy, and touches nothing
-else in that file.
+It shows the entry it adds first (never the app's other settings, which can hold tokens),
+keeps a `.bak` copy, and leaves the rest of the file's settings as they are.
 
 ### `where`
 
@@ -72,6 +72,9 @@ else in that file.
 
 `graph-me scan` reads your sources and adds new or changed items. It never removes anything. Use
 `sync` for that.
+
+`graph-me scan --reread` reads every item again, even unchanged ones. You need it once after
+upgrading to use profiles on an older index (`graph-me doctor` says so).
 
 On a big archive, `graph-me scan --since 90d` reads only what is dated in the last 90 days
 (also `12w`, `6m`, `1y` or a date), so you can ask questions within minutes. Run `graph-me scan`
@@ -234,6 +237,25 @@ to merge every answered batch in `graph-out/work/`. It checks each answer before
 
 ## Interfaces
 
+### `log`
+
+`graph-me log` shows what was asked, newest first: by your AI assistants (with the app's name,
+like "claude-code"), in the terminal and in the web UI, with the files, messages and people each
+answer returned. Items deleted since show as forgotten. The web UI has the same list under
+**Activity**. AI assistants can't read it: there is no MCP tool for it.
+
+| Option | Meaning |
+| --- | --- |
+| `--since <when>` | Only since then (`7d`, `2w` or a date) |
+| `--interface mcp\|cli\|ui` | Only from there |
+| `--client <app>` | Only this app |
+| `--profile <name>` | Only queries made under this profile |
+| `--limit <n>` | At most this many (default 50) |
+| `--json` | Print JSON |
+| `--clear` | Delete the log (with `--since`, only what is older) |
+
+Queries are kept `log.keep_days` days (90 by default).
+
 ### `ui`
 
 `graph-me ui` starts the [web UI](web-ui.md) (needs `graph-me[ui]`).
@@ -245,6 +267,9 @@ to merge every answered batch in `graph-out/work/`. It checks each answer before
 
 ### `mcp`
 
-`graph-me mcp` starts the MCP server for AI assistants. You don't run it by hand. Register it
+`graph-me mcp` starts the MCP server for AI assistants. With `--profile <name>`, the assistant
+only sees that profile's sources (see [Profiles](configuration.md#profiles)) and can't change
+it: register one server per profile with `graph-me install-mcp --profile <name>`, which names it
+`graph-me-<name>`. `graph-me ui --profile <name>` opens the web UI the same way. You don't run it by hand. Register it
 once with `claude mcp add graph-me -- graph-me mcp` (or your app's equivalent) and the app starts
 it when needed. See [Use it from your AI assistant](assistants.md).

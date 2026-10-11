@@ -101,6 +101,8 @@ def build_app(service: Service, token: str) -> Starlette:
         return templates.TemplateResponse(request, name, context, status_code=status_code)
 
     def sources() -> list[str]:
+        if service.profile is not None:  # a profile doesn't learn other sources' names
+            return sorted(service.cfg.profiles[service.profile].sources)
         return sorted(service.cfg.sources)
 
     async def search(request: Request) -> Response:
@@ -162,6 +164,13 @@ def build_app(service: Service, token: str) -> Starlette:
         return page(request, "upcoming.html", days=days, kind=kind,
                     result=service.upcoming(days=days, kind=kind))  # fmt: skip
 
+    async def activity(request: Request) -> Response:
+        interface = request.query_params.get("interface") or None
+        interface = interface if interface in ("cli", "mcp", "ui") else None
+        rows = service.activity(interface=interface, limit=100)
+        return page(request, "activity.html", rows=rows, interface=interface,
+                    keep_days=service.cfg.log.keep_days)  # fmt: skip
+
     async def status(request: Request) -> Response:
         return page(request, "status.html", s=service.status())
 
@@ -178,6 +187,7 @@ def build_app(service: Service, token: str) -> Starlette:
             Route("/api/graph", graph_api),
             Route("/api/graph/{eid}", neighbours_api),
             Route("/upcoming", upcoming),
+            Route("/activity", activity),
             Route("/status", status),
             Mount("/static", StaticFiles(directory=HERE / "static"), name="static"),
         ],

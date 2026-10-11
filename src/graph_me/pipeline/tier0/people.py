@@ -153,6 +153,17 @@ def _aliases(conn: sqlite3.Connection, eid: str) -> list[tuple[str, str]]:
     return [(kind, value) for kind, value in rows]
 
 
+_SHOWN = ("email", "phone", "handle")
+
+
+def _shown(conn: sqlite3.Connection, item_id: str, keys: list[tuple[str, str]]) -> None:
+    """Remember which identifiers this item showed (profiles only show those they can see)."""
+    conn.executemany(
+        "INSERT OR IGNORE INTO item_identifiers(item_id, kind, value) VALUES (?, ?, ?)",
+        [(item_id, k, v) for k, v in keys if k in _SHOWN],
+    )
+
+
 def item_people(conn: sqlite3.Connection, item_id: str, item: Item, ctx: PeopleContext) -> None:
     if item.kind == "contact" and item.contact:
         _contact(conn, item_id, item, ctx)
@@ -162,6 +173,7 @@ def item_people(conn: sqlite3.Connection, item_id: str, item: Item, ctx: PeopleC
     is_me = item.is_from_me or any(k in ctx.me for k in author_keys)
     if is_me:
         author_keys = [*author_keys, ME]
+    _shown(conn, item_id, author_keys)
     author = person_for(conn, author_keys, item.author.name if item.author else None, ctx=ctx)
     if author:
         mention(conn, author, item_id, "author")
@@ -171,6 +183,7 @@ def item_people(conn: sqlite3.Connection, item_id: str, item: Item, ctx: PeopleC
         keys = ctx.keys(party)
         if any(k in ctx.me for k in keys):
             keys.append(ME)
+        _shown(conn, item_id, keys)
         pid = person_for(conn, keys, party.name, ctx=ctx)
         if pid and pid != author:
             mention(conn, pid, item_id, "recipient")
@@ -197,6 +210,7 @@ def _contact(conn: sqlite3.Connection, item_id: str, item: Item, ctx: PeopleCont
     if not keys:
         # A card with a name only still describes someone: key it by the card itself.
         keys = [("contact", item.external_id)]
+    _shown(conn, item_id, keys)
     pid = person_for(conn, keys, c.name, authoritative_name=True, ctx=ctx)
     mention(conn, pid, item_id, "contact")
     facts.contact_facts(conn, item_id, pid, c)

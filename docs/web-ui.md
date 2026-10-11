@@ -14,6 +14,7 @@ This opens a page in your browser with four parts:
   has a "Why do I know this?" list of the files and messages behind it.
 - **Coming up**: birthdays, anniversaries and deadlines read in your documents, with where each
   one came from.
+- **Activity**: what your AI assistants, the terminal and the UI asked, and what came back.
 - **Status** of your sources, the last runs, the blacklist, and items flagged as suspicious.
 
 !!! warning "Don't share the address"
@@ -25,3 +26,4 @@ This opens a page in your browser with four parts:
 | --- | --- |
 | `--port <n>` | Use this port (default: any free port) |
 | `--no-open` | Print the address without opening the browser |
+| `--profile <name>` | Show only that profile's sources |
